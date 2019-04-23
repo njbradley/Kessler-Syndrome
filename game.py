@@ -5,6 +5,80 @@ from pgx import spriteSheetBreaker
 from pgx import scaleImage
 from pgx import filehelper
 
+class DefaultObject:
+    def __init__(self, x, y, xmom, ymom, ID, rotation, rotationmom, life):
+        self.fromList(x, y, xmom, ymom, ID, rotation, rotationmom, life)
+        
+    def toList(self):
+        return [self.x, self.y, self.xmom, self.ymom, self.ID, self.rotation, self.rotationmom, self.life]
+
+    def fromList(self, x, y, xmom, ymom, ID, rotation, rotationmom, life):
+        self.x = x
+        self.y = y
+        self.xmom = xmom
+        self.ymom = ymom
+        self.ID = ID
+        self.rotation = rotation
+        self.rotationmom = rotationmom
+        self.life = life
+        
+    def __setitem__(self, i, value):
+        att = self.toList()
+        att[i] = value
+        self.fromList(*att)
+        
+class Ship:
+    #base object is an instance of DefaultObject, contains all the core fields
+    def __init__(self, baseObject, fuel, armor, shots):
+        self.core = baseObject
+        self.fuel = fuel
+        self.armor = armor
+        self.shots = shots
+        
+class ObjectList:
+    def __init__(self, object_list): #loads in based on stored objectlist
+        storage = ObjectList._fromListToObjects(object_list)
+        self.storage = storage
+            
+    def __str__(self): #toString
+        object_list = []
+        for i in range(len(storage)):
+            object_list += storage[i].toList()
+        print(object_list)
+        
+    def __getitem__(self, i): #called as ObjectList[num]
+        object_loc = i//8 #floor division
+        itemInQuestion = self.storage[object_loc].toList()[i%8]
+        return itemInQuestion
+
+    def __setitem__(self, i, value):
+        self.storage[i][i%8] = value
+
+    def __len__(self):
+        return len(self.storage)
+
+    #def __add__(self, other):
+    #    storage = ObjectList._fromListToObjects(other)
+    #    self.storage.append(storage)
+
+    def __iadd__(self, other):
+        storage = ObjectList._fromListToObjects(other)
+        self.storage.append(storage)
+        return self
+
+    def _fromListToObjects(object_list):
+        storage = []
+        for i in range(0, len(object_list), 8):
+            obj = DefaultObject(*object_list[i:i+8])            
+            storage.append(obj)
+        return storage
+
+class getObjectList:
+    obj = -1
+    def __call__():
+        return getObjectList.obj
+    
+
 #particle effects
 def particlemaker(xpos, ypos, xmom, ymom):
     # particle settings

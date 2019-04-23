@@ -366,7 +366,8 @@ def main():
             # changing variable setup
             sectornum = 1 #spawns you back in home sector every time game is re-initialized
             #- maybe not the best approach but it works for now
-            object_list = getObjects(sectornum, width, height)
+            object_list = game.ObjectList(getObjects(sectornum, width, height))
+            getObjectList.obj = object_list
             previous_tick = 0
             previous_tick2 = 0
             scalar1 = 0
@@ -582,7 +583,7 @@ def main():
                         object_list += printerlist_add
                     i2 += 1            
             # collision detection
-
+            
             #portals
             if portal_toggle: # ship collision with portal
                 destinations = sectorDestinations(sectornum)

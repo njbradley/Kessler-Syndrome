@@ -41,22 +41,47 @@ class ObjectList:
         self.storage = storage
             
     def __str__(self): #toString
-        object_list = []
-        for i in range(len(storage)):
-            object_list += storage[i].toList()
-        print(object_list)
+        return self._toList()
         
     def __getitem__(self, i): #called as ObjectList[num]
-        object_loc = i//8 #floor division
-        itemInQuestion = self.storage[object_loc].toList()[i%8]
-        return itemInQuestion
+        if isinstance(i, slice):
+            if i.step not in (1, None):
+                raise ValueError('only step=1 supported')
+            itemInQuestion = self._toList()
+            itemInQuestion = itemInQuestion[i.start:i.stop]
+            return itemInQuestion
+        else:
+            object_loc = i//8 #floor division
+            itemInQuestion = self.storage[object_loc].toList()[i%8]
+            return itemInQuestion
 
     def __setitem__(self, i, value):
+        if isinstance(i, slice):
+            if i.step == None:
+                i.step = 1
+            for i in range(i.start, i.stop, i.step):
+                self.storage[i][i%8] = value            
         self.storage[i][i%8] = value
 
+    def __delitem__(self, item):
+        if isinstance(item, slice):
+            if item.step not in (1, None):
+                raise ValueError('only step=1 supported')
+            start = item.start//8
+            stop = item.stop//8
+            del self.storage[start:stop]
+        else:
+            raise TypeError('non-slice indexing not supported')
+        
     def __len__(self):
         return len(self.storage)
 
+    def _toList(self):
+        object_list = []
+        for i in range(len(self.storage)):
+            object_list += self.storage[i].toList()
+        return object_list
+    
     #def __add__(self, other):
     #    storage = ObjectList._fromListToObjects(other)
     #    self.storage.append(storage)

@@ -155,6 +155,14 @@ def homeUI(screen, shipInventory, homeInventory):
                 game.deleteObject(110, 11, screen.get_width(), screen.get_height())   
         else:
             Texthelper.writeBox(screen, [("center", 540+220), "send 20 gas to the airman", 3], color=(178,34,34))
+    #getting the airman his circuits
+    if filehelper.get(0)[3] == 5:
+        if homeInventory[2] >= 10:
+            if Texthelper.writeButtonBox(screen, [("center", 540+220), "send 10 circuits to the airman", 3], color=(34,178,34)):
+                homeInventory[2] -= 10
+                filehelper.setElement(6, 0, 3)   
+        else:
+            Texthelper.writeBox(screen, [("center", 540+220), "send 10 circuits to the airman", 3], color=(178,34,34))
 
     return status
 
@@ -496,7 +504,6 @@ def home(screen):
     else:
         return shopStatus
 
-
 def drawPauseUI(screen, mode):
     status = "paused"
     Texthelper.write(screen, [("center", 400), "Paused", 6])
@@ -509,6 +516,7 @@ def drawPauseUI(screen, mode):
 
     if Texthelper.writeButton(screen, [("center", 485 + spacing), "Options", 2]):
         status = "optionsinit"
+        OptionsInput.backStatus = "pauseinit"
     timedFlip(mode)
 
     if Texthelper.writeButton(screen, [("center", 485 + spacing * 2), "Quit to menu", 2]):
@@ -520,16 +528,54 @@ def drawPauseUI(screen, mode):
     pygame.display.flip()
     return status
 
-def mapscreenUI(screen):
+def mapscreenUI(screen, sector_map_coordinates, discoveredSectors, sectornum, DEVMODE, clearedSector):
     status = "mapscreen"
+
+    line_color = (255, 255, 255)
+    infinitypic = graphics.Images.get("infinity")
+    for i in sector_map_coordinates.keys():
+        if discoveredSectors[i] or DEVMODE: #only visited sectors are drawn
+            graphics.drawSector(screen, sector_map_coordinates[i], i, sectornum, clearedSector[i])
+            if game.sectorGeneration(i): #draws infinity signs on map if regenerating sector
+                screen.blit(infinitypic, (sector_map_coordinates[i][0] - 10, sector_map_coordinates[i][1] + 15)) 
+            #draws all links between sectors
+            connections = game.sectorDestinations(i)
+            for j in range(4):
+                adjacentSector = connections[j]
+                if adjacentSector != -1:
+                    if j == 0:
+                        line_start = (sector_map_coordinates[i][0] - 40, sector_map_coordinates[i][1])
+                        line_end = (sector_map_coordinates[adjacentSector][0] + 40,
+                                    sector_map_coordinates[adjacentSector][1])
+                    elif j == 1:
+                        line_start = (sector_map_coordinates[i][0], sector_map_coordinates[i][1] - 40)
+                        line_end = (sector_map_coordinates[adjacentSector][0],
+                                    sector_map_coordinates[adjacentSector][1] + 40)
+                    elif j == 2:
+                        line_start = (sector_map_coordinates[i][0] + 40, sector_map_coordinates[i][1])
+                        line_end = (sector_map_coordinates[adjacentSector][0] - 40,
+                                    sector_map_coordinates[adjacentSector][1])
+                    elif j == 3:
+                        line_start = (sector_map_coordinates[i][0], sector_map_coordinates[i][1] + 40)
+                        line_end = (sector_map_coordinates[adjacentSector][0],
+                                    sector_map_coordinates[adjacentSector][1] - 40)
+                    draw.aaline(screen, line_color, line_start, line_end)
+                    #if an adjacent sector has not been visited, it is drawn with a ?
+                    if (not discoveredSectors[adjacentSector]) and (not DEVMODE):
+                        graphics.drawSector(screen, sector_map_coordinates[adjacentSector], "?", sectornum, False)
+                        
     if Texthelper.writeButton(screen, [(180, 520), "[Commence Flying]", 2.5]):
         status = "game"
         pygame.mouse.set_visible(False)
+        
     return status
 
 class OptionsInput():
     width = ""
     height = ""
+    
+    #directly set by mainbefore options is called, controls what status is called by the back button
+    backStatus = "OptionsInput.backStatus needs to be set before use"
 
     def __init__(self, resolution):
         OptionsInput.width = InputGetter([(1000, 400), str(resolution[0]), 3], "int")
@@ -562,15 +608,41 @@ def optionsUI(screen, spacing, file_settings):
     if Texthelper.writeButton(screen, [(1000, 400 + spacing), text, 3]):
         file_settings[4] = not file_settings[4]
 
-    if Texthelper.writeButtonBox(screen, [("center", 400 + spacing * 3), "Reset Gamedata", 3], color = (178, 34, 34)):
+    Texthelper.write(screen, [(600, 400 + spacing * 2), "Fullscreen:", 3])
+    if (file_settings[2]):
+        text = "On"
+    else:
+        text = "Off"
+    if Texthelper.writeButton(screen, [(1000, 400 + spacing * 2), text, 3]):
+        file_settings[2] = not file_settings[2]
+
+    Texthelper.write(screen, [(600, 400 + spacing * 3), "Ship Drag:", 3])
+    if (file_settings[5]):
+        text = "On"
+    else:
+        text = "Off"
+    if Texthelper.writeButton(screen, [(1000, 400 + spacing * 3), text, 3]):
+        file_settings[5] = not file_settings[5]
+
+    if Texthelper.writeButtonBox(screen, [("center", 400 + spacing * 4.5), "Reset Gamedata", 3], color = (178, 34, 34)):
         status = "menuinit"
         default = Filehelper("Assets\\saves\\defaultgamedata.txt")
         default.copyTo(filehelper)
 
         filehelper.setElement("2", 0, 3)
 
-    if Texthelper.writeButton(screen, [("center", 800), "Back", 2]):
-        status = "pauseinit"
+    if Texthelper.writeButtonBox(screen, [("center", 400 + spacing * 6), "Restore Default Settings", 3]):
+        default = Filehelper("Assets\\saves\\defaultgamedata.txt")
+        default_settings = default.get(0)
+        default_settings[3] = file_settings[3] #don't want to change gamestate
+        for i in range(len(file_settings)): #has to be like this becuase of scope
+            file_settings[i] = default_settings[i]
+
+    if Texthelper.writeButton(screen, [("center", 900), "Back", 2]):
+        screen.fill((0, 0, 0))
+        status = OptionsInput.backStatus
+
+    Texthelper.write(screen, [("center", 1000), "some settings may not update until game is restarted", 1])
 
     pygame.display.flip()
     return status

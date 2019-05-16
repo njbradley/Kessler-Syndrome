@@ -20,27 +20,32 @@ def getHitbox(object_list, object_location, scalar3, graphlist):
     hitBox = [xpos, ypos, 0,0]
     if objectID == 1 or objectID == 5: #main ship
         #objectID as 1.1 because thats full health ship and ship size doesn't change between states
-        hitBox = graphics.Images.getHitbox(xpos, ypos, 1.1, -rotation, True, True, True)
-    elif objectID == 2 or objectID == 8: #shots
+        hitBox = graphics.Images.getHitbox(xpos, ypos, 1.1, -rotation.getRotation(), True, True, True)
+    elif objectID == 2 or objectID == 8 or objectID == 4: #shots and debris particles
         hitBox = [xpos-2, ypos-2, 4, 4]
     elif objectID == 6: #aliens
         hitBox = [xpos, ypos, 60, 60]
     elif objectID == 0: #zvezda
-        hitBox = graphics.Images.getHitbox(xpos, ypos, objectID, rotation, False)
+        hitBox = graphics.Images.getHitbox(xpos, ypos, objectID, rotation.getRotation(), False)
     elif 9 < objectID < 40: #pixel things
-        hitBox = graphics.Images.getHitbox(xpos, ypos, objectID, rotation)
+        hitBox = graphics.Images.getHitbox(xpos, ypos, objectID, rotation.getRotation())
     elif objectID == 7: #alien mines
-        hitBox = graphics.Images.getHitbox(xpos, ypos, objectID, rotation)
+        hitBox = graphics.Images.getHitbox(xpos, ypos, objectID, rotation.getRotation())
     elif objectID == 9: #mine explosion
         scale = 1 + (.1 * (300 - object_list[object_location*8+7]))
-        hitBox = graphics.Images.getHitbox(xpos, ypos, objectID, rotation)
+        hitBox = graphics.Images.getHitbox(xpos, ypos, objectID, rotation.getRotation())
         graphics.Images.scaleHitbox(hitBox, scale)     
     elif 69 < objectID < 100: #asteroids
-        hitBox = graphics.Images.getHitbox(xpos, ypos, objectID, rotation)
+        hitBox = graphics.Images.getHitbox(xpos, ypos, objectID, rotation.getRotation())
     elif objectID == 110: #derelict ship
-        hitBox = graphics.Images.getHitbox(xpos, ypos, objectID, rotation)
+        hitBox = graphics.Images.getHitbox(xpos, ypos, objectID, rotation.getRotation())
     elif objectID == 120: #alien drone
-        hitBox = graphics.Images.getHitbox(xpos, ypos, objectID, rotation) 
+        hitBox = graphics.Images.getHitbox(xpos, ypos, objectID, rotation.getRotation())
+    else:
+        try:
+            hitBox = graphics.Images.getHitbox(xpos, ypos, objectID, rotation.getRotation())
+        except:
+            pass
     return hitBox
 
 #helps out the collision detection section of main
@@ -92,19 +97,22 @@ def main():
     alien_size = [1.2 * scalarscalar, 1.8 * scalarscalar]
 
     #graphical setup
+    temp_image = loadImage("Assets\\images\\supplies.gif")
+    temp_image.set_colorkey((255,255,255))
     graphlist = [scaleImage(loadImage("Assets\\images\\sat1.tif"), sat_scalar),
                  scaleImage(loadImage("Assets\\images\\sat2.tif"), sat_scalar),
                  scaleImage(loadImage("Assets\\images\\sat3.tif"), sat_scalar),
                  scaleImage(loadImage("Assets\\images\\sat4.tif"), sat_scalar),
                  "s", "d", "f", "h", "j", "k", "l", "a", "s", "e", "as", "4", "3", "2", "1", "x11",
-                 loadImage("Assets\\images\\solarpanel.tif")]
+                 loadImage("Assets\\images\\solarpanel.tif"), temp_image]
     earthpic = loadImage("Assets\\images\\earth.tif")
-    infinitypic = loadImage("Assets\\images\\infinity.tif")
 
     # settings
     max_speed = 4 * scalarscalar
     missile_lifespan = 130 * scalarscalar
     missile_accel = 7 * scalarscalar
+    AITools.missile_accel = missile_accel
+    AITools.missile_lifespan = missile_lifespan
     step_x = 0.08 * scalarscalar
     step_y = 0.08 * scalarscalar
     step_r = 2.3
@@ -141,7 +149,7 @@ def main():
 
     # variable setup
     playerinfo = filehelper.get(1)
-    d_parts = [30]
+    d_parts = [30, 31]
     d_sats = [10, 11, 12, 13]
     d_asteroids = [70, 71, 72, 73, 80, 81, 82, 83, 90, 91, 92, 93, 94, 95, 96, 97]
     ship_id = [1, 5]
@@ -200,11 +208,12 @@ def main():
             Texthelper.write(screen, [(300, 540-200), "Kessler Syndrome", 7])
             
             # buttons
-            text_input = [(410, 540-50), "[Play]", 3]
-            if Texthelper.writeButton(screen, text_input):
+            if Texthelper.writeButtonBox(screen, [(410, 490), "Play", 3]):
                 status = "gameinit"
-            text_input = [(410, 550), "[Quit to desktop]", 3]
-            if Texthelper.writeButton(screen, text_input): #if "quit to desktop" is clicked           
+            if Texthelper.writeButtonBox(screen, [(410, 550), "Options", 3]):
+                status = "optionsinit"
+                OptionsInput.backStatus = "menuinit"
+            if Texthelper.writeButtonBox(screen, [(410, 610), "Quit to desktop", 3]): #if "quit to desktop" is clicked           
                 pygame.quit() #stop the program
                 raise SystemExit #close the program            
             screen.blit(earthpic, (1500,800))
@@ -225,7 +234,7 @@ def main():
                     discovery[i - 1] = "1"
             filehelper.setElement("".join(discovery), 1, 2)
             cleared = list(cleared) 
-            for i in range(19):
+            for i in range(1, 20):
                 if clearedSector[i]:
                     cleared[i - 1] = "1"
             filehelper.setElement("".join(cleared), 1, 1)
@@ -266,48 +275,15 @@ def main():
             pygame.mouse.set_visible(True)
             Font.set_scramble_paused(True) #pauses any scrambling going on
             Screenhelper.greyOut(screen)
-           
-            line_color = (255, 255, 255)
+            mapscreenUI(screen, sector_map_coordinates, discoverSector, sectornum, DEVMODE, clearedSector)      
 
-            for i in sector_map_coordinates.keys():
-                if discoverSector[i] or DEVMODE: #only visited sectors are drawn
-                    graphics.drawSector(screen, sector_map_coordinates[i], i, sectornum)
-                    if sectorGeneration(i): #draws infinity signs on map if regenerating sector
-                        screen.blit(infinitypic, (sector_map_coordinates[i][0] - 10, sector_map_coordinates[i][1] + 15)) 
-                    #draws all links between sectors
-                    connections = sectorDestinations(i)
-                    for j in range(4):
-                        adjacentSector = connections[j]
-                        if adjacentSector != -1:
-                            if j == 0:
-                                line_start = (sector_map_coordinates[i][0] - 40, sector_map_coordinates[i][1])
-                                line_end = (sector_map_coordinates[adjacentSector][0] + 40,
-                                            sector_map_coordinates[adjacentSector][1])
-                            elif j == 1:
-                                line_start = (sector_map_coordinates[i][0], sector_map_coordinates[i][1] - 40)
-                                line_end = (sector_map_coordinates[adjacentSector][0],
-                                            sector_map_coordinates[adjacentSector][1] + 40)
-                            elif j == 2:
-                                line_start = (sector_map_coordinates[i][0] + 40, sector_map_coordinates[i][1])
-                                line_end = (sector_map_coordinates[adjacentSector][0] - 40,
-                                            sector_map_coordinates[adjacentSector][1])
-                            elif j == 3:
-                                line_start = (sector_map_coordinates[i][0], sector_map_coordinates[i][1] + 40)
-                                line_end = (sector_map_coordinates[adjacentSector][0],
-                                            sector_map_coordinates[adjacentSector][1] - 40)
-                            pgx.draw.aaline(screen, line_color, line_start, line_end)
-
-                            #if an adjacent sector has not been visited, it is drawn with a ?
-                            if (not discoverSector[adjacentSector]) and (not DEVMODE):
-                                graphics.drawSector(screen, sector_map_coordinates[adjacentSector], "?", sectornum)
-
-            status = mapscreenUI(screen)            
             pygame.display.flip()
             status = "mapscreen"
 
         if status == "mapscreen":
-            status = mapscreenUI(screen)
+            status = mapscreenUI(screen, sector_map_coordinates, discoverSector, sectornum, DEVMODE, clearedSector)
             inputvar = keyboard()
+
             if ("m" in inputvar or "escape" in inputvar) and timer_popupmenu > 25:
                 status = "game"
                 timer_popupmenu = 0
@@ -417,16 +393,16 @@ def main():
                                    graphics.FlashyBox([1590, 920, 280, 70], 0.2, (255,0,0)))
 
             for i in range(0, len(object_list), 8):
-                        object_number = object_list[i+4]
-                        if object_number == 0:
-                            dockPosition = dock(object_list[i], object_list[i+1], graphics.Images.get(0))
-                            for i2 in range(0, len(object_list), 8):
-                                if object_list[4 + i2] == 1:
-                                    object_list[i2] = dockPosition[0]
-                                    object_list[i2+1] = dockPosition[1]
-                                    object_list[i2+2] = dockPosition[2]
-                                    object_list[i2+3] = dockPosition[3]
-                                    object_list[i2+5] = dockPosition[4]
+                object_number = object_list[i+4]
+                if object_number == 0:
+                    dockPosition = dock(object_list[i], object_list[i+1], graphics.Images.get(0))
+                    for i2 in range(0, len(object_list), 8):
+                        if object_list[4 + i2] == 1:
+                            object_list[i2] = dockPosition[0]
+                            object_list[i2+1] = dockPosition[1]
+                            object_list[i2+2] = dockPosition[2]
+                            object_list[i2+3] = dockPosition[3]
+                            object_list[i2+5] = dockPosition[4]
             
             #game progression
             discovery = str(filehelper.get(1)[2])
@@ -439,7 +415,7 @@ def main():
                     
             cleared = str(filehelper.get(1)[1])
             clearedSector = {}
-            for i in range(19):
+            for i in range(1, 20):
                 if cleared[i - 1] == "8":
                     clearedSector[i] = False
                 else:
@@ -453,7 +429,7 @@ def main():
 
             if file_settings[3] == 1:
                 AnnouncementBox(loadImage("Assets\\announcements\\warden.png"),
-                                pygame.mixer.Sound(file="Assets\\announcements\\1r.ogg"),
+                                loadSound("Assets\\announcements\\1r.ogg"),
                                 "You're still alive? Well then go pick up some space debris like a good prisoner!")
                 file_settings[3] = 2
                 filehelper.set(file_settings, 0)
@@ -470,25 +446,25 @@ def main():
             ticks = pygame.time.get_ticks()
             if inputvar:
                 if object_list[4] == 1:
-                    thrust_vector = (math.cos(math.radians(object_list[5]-90)),
-                                     math.sin(math.radians(object_list[5]+90)))
+                    thrust_vector = (math.cos(math.radians(object_list[5].getRotation()-90)),
+                                     math.sin(math.radians(object_list[5].getRotation()+90)))
                     if "w" in inputvar or "uparrow" in inputvar:
                         object_list[2] += step_x * thrust_vector[0]
                         object_list[3] += step_y * thrust_vector[1]
                         flame = True
                     if "e" in inputvar or "rightarrow" in inputvar:
-                        object_list[5] += step_r
+                        object_list[5].rotateBy(step_r)
                     if "q" in inputvar or "leftarrow" in inputvar:
-                        object_list[5] -= step_r
+                        object_list[5].rotateBy(-step_r)
                     if "space" in inputvar and (ticks - previous_tick) > 360 and ammunition > 0:
                         ammunition -= 1
                         SoundVault.play('shot')
                         xmom_miss = object_list[2] + (thrust_vector[0] * missile_accel)
                         ymom_miss = object_list[3] + (thrust_vector[1] * missile_accel)
                         front_pointlist = RotatePoint(object_list[0], object_list[1],
-                                                      [object_list[0], object_list[1]-30*scalar3], object_list[5])
+                                                      [object_list[0], object_list[1]-30*scalar3], object_list[5].getRotation())
                         object_list_addition = [front_pointlist[0][0], front_pointlist[0][1], xmom_miss, ymom_miss, 2,
-                                                "NA", "NA", missile_lifespan]
+                                                RotationState(-1,-1), "NA", missile_lifespan]
                         object_list += object_list_addition
                         previous_tick = ticks
                 if "shift" in inputvar and "c" in inputvar and (ticks - previous_tick2) > 360:
@@ -520,20 +496,31 @@ def main():
 
             # quest handling
             if filehelper.get(0)[3] == 4:
-                object_list += [0.43*width, 0.39*height, 0, 0, 110, "NA", "NA", 1]
+                object_list += [0.43*width, 0.39*height, 0, 0, 110, RotationState("NA", "NA"), "NA", 1]
                 AnnouncementBox(loadImage("Assets\\announcements\\airman.png"),
-                                pygame.mixer.Sound(file="Assets\\sounds\\click.ogg"),
+                                loadSound("Assets\\sounds\\click.ogg"),
                                 "Thanks for the help " + filehelper.get(1)[0] + ". Have 100 credits for your trouble.")
                 AnnouncementBox(loadImage("Assets\\announcements\\airman.png"),
-                                pygame.mixer.Sound(file="Assets\\sounds\\click.ogg"),
-                                ("So fellow traveler, what did you do to get banished up here? You've got dirt on the "
-                                 "president of the world you say? That's splendid!"))
+                                loadSound("Assets\\sounds\\click.ogg"),
+                                "So fellow traveler, what did you do to get banished up here?")
                 AnnouncementBox(loadImage("Assets\\announcements\\airman.png"),
-                                pygame.mixer.Sound(file="Assets\\sounds\\click.ogg"),
+                                loadSound("Assets\\sounds\\click.ogg"),
+                                "You've got dirt on the president of the world you say? That's splendid!")
+                AnnouncementBox(loadImage("Assets\\announcements\\airman.png"),
+                                loadSound("Assets\\sounds\\click.ogg"),
                                 ("If you could get me 10 circuits I could hack the gps, the global propaganda system, "
                                  "and the president would really be pissed then!"))
                 shipInventory[3] += 100
                 filehelper.setElement(5, 0, 3)
+            if filehelper.get(0)[3] == 6:
+                AnnouncementBox(loadImage("Assets\\announcements\\airman.png"),
+                                loadSound("Assets\\sounds\\click.ogg"),
+                                ("Lets go team! Now the whole world will find out the President's crimes. "
+                                 "What did she do again?"))
+                AnnouncementBox(loadImage("Assets\\announcements\\airman.png"),
+                                loadSound("Assets\\sounds\\click.ogg"),
+                                "Conspiring with aliens! The humanity! She must be stopped! I'll get to work on the hack.")
+                filehelper.setElement(7, 0, 3)
             # quest handling
 
             # collision detection
@@ -545,7 +532,9 @@ def main():
                     if CollisionInfo.doCollide(i, i2, object_list):
                         printerlist_add = []
                         drops = [0,0,0,0] #why is this here?
-                        if object_list[4 + (i * 8)] == 1 and object_list[4 + (i2 * 8)] in d_sats: #ship v satellite
+                        ID1 = object_list[4+(i*8)]
+                        ID2 = object_list[4+(i2*8)]
+                        if ID1 in ship_id and ID2 in d_sats: #ship v satellite
                             xForce = abs(object_list[2+(i*8)] - object_list[2+(i2*8)]) 
                             yForce = abs(object_list[3+(i*8)] - object_list[3+(i2*8)])
                             force = (xForce + yForce)*2
@@ -557,17 +546,24 @@ def main():
                                 SoundVault.play('money')
                             #merges the two lists by adding their like elements together
                             shipInventory = [a + b for a, b in zip(shipInventory, drops)]
-                        elif object_list[4 + (i * 8)] in ship_id and object_list[4 + (i2 * 8)] in d_parts: #ship v debris
+                        elif ID1 in ship_id and ID2 in d_parts: #ship v debris
                            printerlist_add += particlemaker(object_list[(i2 * 8)], object_list[1+(i2 * 8)],
                                                             object_list[2+(i2 * 8)], object_list[3+(i2 * 8)])
                            object_list[(i2*8)+7] = -1
-                           drops = solarPanelDrops()
+                           if object_list[(4+(i2*8))] == 31: #supply drop
+                               ammunition = totalammunition #fills your ammo
+                               currentfuel = totalfuel #tops off your fuel
+                               drops = satelliteDrops()
+                               drops = [i*3 for i in drops] #multiplies satellite drop by 3
+                           else: 
+                               drops = solarPanelDrops()
                            shipInventory = [a + b for a, b in zip(shipInventory, drops)]                            
-                        elif object_list[4 + (i * 8)] in ship_id and object_list[4 + (i2 * 8)] == 0: #going to garage
+                        elif ID1 in ship_id and ID2 == 0: #going to garage
                             Texthelper.writeBox(screen, [(800,500), "press enter", 1], color = (0,100,200))
                             if "enter" in inputvar:
                                 status = "homeinit"
-                        elif object_list[4 + (i * 8)] in ship_id and 69 < object_list[4 + (i2 * 8)] < 100: #ship v asteroid
+                        #ship v asteroid or spiker or drone
+                        elif ID1 in ship_id and (69 < ID2 < 100 or ID2 == 121 or ID2 == 120):
                             xForce = abs(object_list[2+(i*8)] - object_list[2+(i2*8)]) 
                             yForce = abs(object_list[3+(i*8)] - object_list[3+(i2*8)])
                             force = (xForce + yForce)*2
@@ -580,7 +576,8 @@ def main():
                                 currentarmor = currentarmor - (int(force) - 5)
                                 Font.scramble(100) #scrambles text for 100 ticks
                             explosion_sounds()
-                        elif object_list[4 + (i2 * 8)] == 2 and 69 < object_list[4 + (i * 8)] < 100: #missile v asteroid
+                        #missile v asteroid or spiker or drone
+                        elif ID2 == 2 and (69 < ID1 < 100 or ID1 == 121 or ID1 == 120): 
                             printerlist_add += particlemaker(object_list[(i * 8)], object_list[1+(i * 8)],
                                                              object_list[2+(i * 8)], object_list[3+(i * 8)])
                             object_list[(i2*8)+7] = -1
@@ -600,11 +597,11 @@ def main():
                             explosion_sounds()
                         elif object_list[4 + (i2 * 8)] == 2 and object_list[4 + (i * 8)] == 7: #missile v mine
                             printerlist_add += [object_list[(i * 8)], object_list[1+(i * 8)], object_list[2+(i*8)],
-                                                object_list[3+(i*8)], 9, "NA", "NA", 300]
+                                                object_list[3+(i*8)], 9, RotationState("NA", "NA"), "NA", 300]
                             object_list[(i*8)+7] = -1
                         elif object_list[4 + (i * 8)] in ship_id and object_list[4 + (i2 * 8)] == 7: #ship v mine
                             printerlist_add += [object_list[(i2 * 8)], object_list[1+(i2 * 8)], object_list[2+(i2*8)],
-                                                object_list[3+(i2*8)], 9, "NA", "NA", 300]
+                                                object_list[3+(i2*8)], 9, RotationState("NA", "NA"), "NA", 300]
                             object_list[(i2*8)+7] = -1
                             object_list[4] = 5
                             object_list[7] = 200
@@ -615,9 +612,30 @@ def main():
                             object_list[7] = 200
                             Font.scramble(200)
                             currentarmor -= 0.03
-                        object_list += printerlist_add
+                        elif object_list[4 + (i * 8)] in ship_id and object_list[4 + (i2 * 8)] == 122: #ship v spike
+                            printerlist_add += particlemaker(object_list[(i * 8)], object_list[1+(i * 8)],
+                                                             object_list[2+(i * 8)], object_list[3+(i * 8)])
+                            currentarmor -= 1
+                            object_list[(i2*8)+7] = -1
+                        elif object_list[4 + (i * 8)] == 2 and object_list[4 + (i2 * 8)] == 122: #missile v spike
+                            printerlist_add += particlemaker(object_list[(i * 8)], object_list[1+(i * 8)],
+                                                             object_list[2+(i * 8)], object_list[3+(i * 8)])
+                            object_list[(i*8)+7] = -1
+                            object_list[(i2*8)+7] = -1
+                        elif object_list[4 + (i2 * 8)] == 4 and object_list[4+i*8] != 4: #if debris hits anything
+                            object_list[i2*8+7] = -1
+                        object_list += printerlist_add                            
                     i2 += 1            
             # collision detection
+
+            #special entity behaviors
+            for i in range(0, len(object_list), 8):
+                if not isinstance(object_list[i+6], str):
+                    try:
+                        object_list[i+6].update(object_list, i)
+                    except:
+                        pass
+            #special entity behaviors
 
             #portals
             if portal_toggle: # ship collision with portal
@@ -640,46 +658,45 @@ def main():
                                                       d_sats, d_parts, d_asteroids, sectornum)
                             else:
                                 object_list = object_list[:8] + new_objects[8:]
-                            #recordings needed
                             if discoverSector[sectornum] == False:
                                 if sectornum == 4:
                                     AnnouncementBox(loadImage("Assets\\announcements\\warden.png"),
-                                                    pygame.mixer.Sound(file="Assets\\announcements\\3r.ogg"),
+                                                    loadSound("Assets\\announcements\\3r.ogg"),
                                                     "Jesus! Took you long enough to get here. Now get to work on this sector.")
                                 if sectornum == 6:
                                     AnnouncementBox(loadImage("Assets\\announcements\\warden.png"),
-                                                    pygame.mixer.Sound(file="Assets\\announcements\\4r.ogg"),
+                                                    loadSound("Assets\\announcements\\4r.ogg"),
                                                     ("I see you finally decided to travel further. Better pray to the "
                                                      "Virgin Mary that you don't die."))
                                 if sectornum == 9:
                                     AnnouncementBox(loadImage("Assets\\announcements\\warden.png"),
-                                                    pygame.mixer.Sound(file="Assets\\announcements\\5r.ogg"),
+                                                    loadSound("Assets\\announcements\\5r.ogg"),
                                                     "Congratulations, you made it to the land of explosives. My favorite part!")
                                 if sectornum == 11:
                                     AnnouncementBox(loadImage("Assets\\announcements\\airman.png"),
-                                                    pygame.mixer.Sound(file="Assets\\sounds\\click.ogg"),
+                                                    loadSound("Assets\\sounds\\click.ogg"),
                                                     "Is someone out there? I've been stuck out here for so long")
                                     AnnouncementBox(loadImage("Assets\\announcements\\airman.png"),
-                                                    pygame.mixer.Sound(file="Assets\\sounds\\click.ogg"),
+                                                    loadSound("Assets\\sounds\\click.ogg"),
                                                     ("If you would give me some gas to get back to station I would be "
                                                      "eternally grateful"))
                                     AnnouncementBox(loadImage("Assets\\announcements\\airman.png"),
-                                                    pygame.mixer.Sound(file="Assets\\sounds\\click.ogg"),
+                                                    loadSound("Assets\\sounds\\click.ogg"),
                                                     "Just go back to station and find the button to send me some fuel")
                                     file_settings[3] = 3
                                     filehelper.set(file_settings, 0)
                                 if sectornum == 12:
                                     AnnouncementBox(loadImage("Assets\\announcements\\warden.png"),
-                                                    pygame.mixer.Sound(file="Assets\\announcements\\6r.ogg"),
+                                                    loadSound("Assets\\announcements\\6r.ogg"),
                                                     ("Damn, you're slow. Clean this mess up before I get bored and "
                                                      "launch rockets at you!"))
                                 if sectornum == 17:
                                     AnnouncementBox(loadImage("Assets\\announcements\\warden.png"),
-                                                    pygame.mixer.Sound(file="Assets\\announcements\\7r.ogg"),
+                                                    loadSound("Assets\\announcements\\7r.ogg"),
                                                     "I see you found some more debris to clean up. make it quick!")
                                 if sectornum == 19:
                                     AnnouncementBox(loadImage("Assets\\announcements\\warden.png"),
-                                                    pygame.mixer.Sound(file="Assets\\announcements\\8r.ogg"),
+                                                    loadSound("Assets\\announcements\\8r.ogg"),
                                                     ("Holy Jesus, look at that! You finally made it to the edge of your"
                                                      " cleaning zone. But wait… there's more! You're going to keep "
                                                      "cleaning for the rest of your life!"))
@@ -695,10 +712,14 @@ def main():
                 shipInventory[3] += 50 #adds 50 credits to ship inventory
                 SoundVault.play('money')
                 clearedSector[sectornum] = True
-                if sectornum == 1:
+                sectorsCleared = 0
+                for n in clearedSector.values():
+                    if n:
+                        sectorsCleared += 1
+                if sectorsCleared == 2: #one sector is cleared by default, so 2 means player has actually cleared a sector
                     AnnouncementBox(loadImage("Assets\\announcements\\warden.png"),
-                                    pygame.mixer.Sound(file="Assets\\announcements\\2r.ogg"),                             
-                                    ("Finally! You've cleared the first sector! Now here's a reward for your obedience."
+                                    loadSound("Assets\\announcements\\2r.ogg"),                             
+                                    ("Finally! You've cleared your first sector! Now here's a reward for your obedience."
                                      " Don't get lazy now!"))
 
             # deaderizer
@@ -736,7 +757,10 @@ def main():
                 object_list[3] = 0
 
             #physics!
-            doPhysics(object_list, width, height, max_speed, drag, step_drag)
+            if file_settings[5]: #if ship drag is on
+                doPhysics(object_list, width, height, max_speed, drag, step_drag)
+            else:
+                doPhysics(object_list, width, height, max_speed, [], step_drag)
 
             #ship durability state
             armorPercent = currentarmor / totalarmor * 100

@@ -1,10 +1,9 @@
-#just a file to de-clutter the main script
 import pygame
 import random
 from textwrap import wrap
 import pickle
 import codecs
-OS = "windows" #other option = "mac"
+import os
 
 #keyboard for continuous keypresses
 def keyboard():
@@ -87,20 +86,8 @@ def scretchImage(image, size):
     return image
 
 def handlePath(path):
-    newpath = ""
-    if OS == "mac":
-        for i in range(len(path)):
-            if path[i] == "\\":
-                newpath += "/"
-            else:
-                newpath += path[i]
-    else:
-        for i in range(len(path)):
-            if path[i] == "/":
-                newpath += "\\"
-            else:
-                newpath += path[i]
-    return newpath
+    path = path.split("\\")
+    return os.path.join(*path)
 
 def loadImage(path):
     path = handlePath(path)
@@ -145,7 +132,7 @@ def spriteSheetBreaker(sheet, width, height, margin, vertmargin, rows, columns):
 class SoundVault():
     storage = {}
     def __init__(self, name, filepath, **kwargs):
-        sound = pygame.mixer.Sound(handlePath(filepath))
+        sound = loadSound(filepath)
         if 'volume' in kwargs:
             sound.set_volume(kwargs['volume'])        
         SoundVault.storage[name] = sound
@@ -153,6 +140,10 @@ class SoundVault():
         return SoundVault.storage[name]
     def play(name):
         SoundVault.storage[name].play()
+
+def loadSound(path):
+    path = handlePath(path)
+    return pygame.mixer.Sound(file=path)
 
 pygame.mixer.init()
 SoundVault('button', "Assets\\sounds\\click.ogg", volume=0.5)
@@ -258,9 +249,10 @@ class InputGetter():
             specialtext = self.currenttext[:]
             if self.blink < InputGetter.BLINKSPEED/2:
                 specialtext[1] += "|"
+            InputGetter._handleThisShit(self, self.inputtype)
             if Texthelper.writeNullButton(screen, specialtext) == False:
                 self.clicked = False
-            InputGetter._handleThisShit(self, self.inputtype)
+                self.last_input = ["getready"]
 
     def _handleThisShit(self, inputtype):
         last_input = self.last_input
@@ -310,7 +302,7 @@ class AnnouncementBox():
     width = 1
     height = 1
     upcoming = [] # upcoming anouncements that need to be displayed
-    BREAKPOS = 32 #amount of chars before a linebreak
+    BREAKPOS = 31 #amount of chars before a linebreak
     INTEXTSPEED = 4 # frames per character that it displayes at
     OUTTEXTSPEED = 0.5
     #image = portrait next to text, sound = whatever should play, text = text
@@ -319,7 +311,6 @@ class AnnouncementBox():
         sound.set_volume(0.75)
         self.sound = sound
         self.text = text
-        print(text)
         self.linedtext = wrap(text, AnnouncementBox.BREAKPOS) # wraps text by linebreak
         lineelements = []
         for i in range(len(self.linedtext)):

@@ -34,11 +34,13 @@ def change_color(image, currentColor, newColor, toReturn = False):
 class Images:
     storage = {}
     bounding_rects = {}
-    def add(name, image): #or (ID, dictionary of rotations) 
+    def add(name, image, **kwargs): #or (ID, dictionary of rotations)
+        image = Images._processImage(image, **kwargs)
         Images.storage[name] = image
         Images.bounding_rects[name] = image.get_bounding_rect()
 
-    def addRotate(ID, image): #takes an ID and a surface and adds the dictionary of its rotations to Images storage 
+    def addRotate(ID, image, **kwargs): #takes an ID and a surface and adds the dictionary of its rotations to Images storage 
+        image = Images._processImage(image, **kwargs)
         rotatedict = {}
         rectdict = {}
         for j in range(36):
@@ -47,6 +49,11 @@ class Images:
             rectdict[j*10] =  rotatedImage.get_bounding_rect()
         Images.storage[ID] = rotatedict
         Images.bounding_rects[ID] = rectdict
+
+    def _processImage(image, **kwargs):
+        if "colorkey" in kwargs:
+            image.set_colorkey(kwargs["colorkey"])
+        return image
     
     def get(name, *args): #arg = rotation value
         if not args:
@@ -128,18 +135,18 @@ def init(d_asteroids, d_parts, d_sats, graphlist, scalar2, scalar3):
     #adding images for info bars
     Images.add("fuelpic", scaleImage(loadImage("Assets\\images\\fuelcanister.tif"), 2))
     Images.add("armorpic", loadImage("Assets\\images\\armor.tif"))
-    #Images.add("shotpic", loadImage("Assets\\images\\missile.tif"))
-    image = loadImage("Assets\\images\\missile.png")
-    image.set_colorkey((255,255,255))
-    Images.add("shotpic", image)
+    Images.add("shotpic", loadImage("Assets\\images\\missile.png"), colorkey=(255,255,255))
+
+    #adding other icons
+    Images.add("infinity", loadImage("Assets\\images\\infinity.tif"))
 
     #adding miscellaneous other object images
     Images.add(0, scaleImage(loadImage("Assets\\images\\zvezda.tif"), 2))
     Images.addRotate(7, scaleImage(loadImage("Assets\\images\\alienMines.tif"), 2))
     Images.add(9, scaleImage(loadImage("Assets\\images\\ionBlast.tif"), .5))
-    image = loadImage("Assets\\images\\aliendrone.gif")
-    image.set_colorkey((255,255,255))
-    Images.addRotate(120, scaleImage(image, 1.5))
+    Images.addRotate(120, scaleImage(loadImage("Assets\\images\\aliendrone.gif"), 1.5), colorkey=(255,255,255))
+    Images.addRotate(121, scaleImage(loadImage("Assets\\images\\spiker.gif"),2), colorkey=(255,255,255))
+    Images.addRotate(122, loadImage("Assets\\images//alienshot.gif"), colorkey=(255,255,255))
 
     #adding different types of stars
     base_star = loadImage("Assets\\images\\star.gif")
@@ -154,8 +161,7 @@ def init(d_asteroids, d_parts, d_sats, graphlist, scalar2, scalar3):
     
     #adding ship, no rotation because it rotates in real time
     #loads up spritesheet and loads them all up under separate IDs
-    image = loadImage("Assets\\images\\ships.png")
-    imageList = spriteSheetBreaker(image, 24, 60, 0, 0, 1, 4)
+    imageList = spriteSheetBreaker(loadImage("Assets\\images\\ships.png"), 24, 60, 0, 0, 1, 4)
     for i in range(len(imageList)):
         imageList[i].set_colorkey((255,255,255))
     Images.add(1.1, imageList[0])
@@ -199,7 +205,7 @@ def crayprinter(screen, xpos, ypos, object_number, rotation, decayLife, scalar1,
         screen.blit(image, (xpos, ypos))
             
     if object_number == 1 or object_number == 5: #draws main ship
-        image = rotatePixelArt(Images.get(1+SHIPSTATE/10), -rotation)
+        image = rotatePixelArt(Images.get(1+SHIPSTATE/10), -rotation.getRotation())
         screen.blit(image, (int(xpos-0.5*image.get_width()), int(ypos-0.5*image.get_height())))
         colliderect = [int(xpos-0.5*image.get_width()), int(ypos-0.5*image.get_height()), image.get_width(),
                        image.get_height()]
@@ -208,7 +214,7 @@ def crayprinter(screen, xpos, ypos, object_number, rotation, decayLife, scalar1,
             flame_pointlist = [[xpos, ypos], [xpos+6*scalar3, ypos+5*scalar3],
                                 [xpos, ypos+20*scalar3],
                                 [xpos-6*scalar3, ypos+5*scalar3]]
-            flame_pointlist = Rotate(xpos, ypos, flame_pointlist, rotation)
+            flame_pointlist = Rotate(xpos, ypos, flame_pointlist, rotation.getRotation())
             pygame.gfxdraw.aapolygon(screen, flame_pointlist, (255,100,0))
             pygame.gfxdraw.filled_polygon(screen, flame_pointlist, (255,100,0))
         flame = False
@@ -219,47 +225,26 @@ def crayprinter(screen, xpos, ypos, object_number, rotation, decayLife, scalar1,
     if object_number == 4: #draws explosion effects
         pygame.draw.circle(screen, (255, 255, 255), (int(xpos), int(ypos)), 1, 0)
                 
-    if object_number == 6: #draws alien
-        alien_pointlist = [[xpos-25*scalar1, ypos], [xpos-18*scalar1, ypos], [xpos-10*scalar1, ypos+8*scalar1],
-                           [xpos+10*scalar1, ypos+8*scalar1], [xpos+18*scalar1, ypos], [xpos+25*scalar1, ypos],
-                           [xpos-18*scalar1, ypos], [xpos-10*scalar1, ypos], [xpos-7*scalar1, ypos-7*scalar1],
-                           [xpos, ypos-10*scalar1], [xpos+7*scalar1, ypos-7*scalar1], [xpos+10*scalar1, ypos]]
-        colliderect = pygame.draw.aalines(screen, (255,255,255), True, alien_pointlist, False)
-
-    if object_number == 7: #draws alien mines
-        image = Images.get(7, rotation)
-        screen.blit(image, (int(xpos-0.5*image.get_width()), int(ypos-0.5*image.get_height())))
-        colliderect = [int(xpos-0.5*image.get_width()), int(ypos-0.5*image.get_height()), image.get_width(),
-                       image.get_height()]
-
     if object_number == 9: #draws alien blasts
         scale = 1 + (.1 * (300 - decayLife))
         image = scaleImage(Images.get(9), scale)
         screen.blit(image, (int(xpos-0.5*image.get_width()), int(ypos-0.5*image.get_height())))
-        colliderect = Images.getHitbox(xpos, ypos, 9, rotation)
+        colliderect = Images.getHitbox(xpos, ypos, 9, rotation.getRotation())
         Images.scaleHitbox(colliderect, scale)  
-        
-    if 9 < object_number < 40: #draws satellites
-        image = Images.get(object_number, rotation)
-        screen.blit(image, (int(xpos-0.5*image.get_width()), int(ypos-0.5*image.get_height())))
-        colliderect = [int(xpos-0.5*image.get_width()), int(ypos-0.5*image.get_height()), image.get_width(),
-                       image.get_height()]
-        
-    if 69 < object_number < 100: #draws asteroids
-        image = Images.get(object_number, rotation)
-        screen.blit(image, (int(xpos-0.5*image.get_width()), int(ypos-0.5*image.get_height())))
-        colliderect = Images.getHitbox(xpos, ypos, object_number, rotation)
-
+            
     if object_number == 110: #draws derelict ship
         image = Images.get(110)
         screen.blit(image, (int(xpos-0.5*image.get_width()), int(ypos-0.5*image.get_height())))
-        colliderect = Images.getHitbox(xpos, ypos, 110, rotation)
+        colliderect = Images.getHitbox(xpos, ypos, 110, rotation.getRotation())
 
-    if object_number == 120: #draws alien drone
-        image = Images.get(120, rotation)
-        screen.blit(image, (int(xpos-0.5*image.get_width()), int(ypos-0.5*image.get_height())))
-        colliderect = Images.getHitbox(xpos, ypos, 120, rotation)
-
+    else:
+        try:
+            image = Images.get(object_number, rotation.getRotation())
+            screen.blit(image, (int(xpos-0.5*image.get_width()), int(ypos-0.5*image.get_height())))
+            colliderect = Images.getHitbox(xpos, ypos, object_number, rotation.getRotation())
+        except:
+            pass
+        
     return colliderect
 
 #takes care of the printing logic
@@ -350,14 +335,20 @@ class InfoBars:
         Texthelper.write(screen, [(1665, 865), str(ammunition) + "/" + str(totalammunition), 3])
 
 #used by the map to actually draw out the sectors
-def drawSector(screen, location, number, currentsector):
+def drawSector(screen, location, number, currentsector, cleared):
     secsize = 80 #side length of the cubes
-    if number != currentsector:
-        pgx.draw.rect(screen, (255,255,255), (location[0]-secsize/2, location[1]-secsize/2, secsize, secsize), 4)
     if number == currentsector:
-        pgx.draw.rect(screen, (255,15,25), (location[0]-secsize/2, location[1]-secsize/2, secsize, secsize), 4)
-        Texthelper.write(screen, [(location[0]-35, location[1]-35), "U R Here", 1])
-    Texthelper.write(screen, [(location[0]-len(str(number))*10, location[1]-15), str(number), 2])
+        color = (70, 130, 180)
+    elif cleared:
+        color = (20, 160, 40)
+    else:
+        color = (180, 50, 50)
+    
+    pgx.draw.rect(screen, color, (location[0]-secsize/2, location[1]-secsize/2, secsize, secsize), 4)
+    
+    if number == currentsector:
+        Texthelper.write(screen, [(location[0]-35, location[1]-35), "U R Here", 1], color=color)
+    Texthelper.write(screen, [(location[0]-len(str(number))*10, location[1]-15), str(number), 2], color=color)
 
 #used in UIscreens and the main game loop to display the inventory
 def drawInventory(screen, shipInventory):

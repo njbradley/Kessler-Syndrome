@@ -1,27 +1,20 @@
+import pygame
+import random
+
 from pgx import *
 from graphics import change_color
-def level1(screen, width, height):
-    import pygame
-    import random
-    from game import generateStars
+from game import generateStars
+import graphics
+
+def level1(screen, width, height, scalarscalar):
     clock = pygame.time.Clock()
-    soyuz = loadImage("Assets\\images\\soyuz2.tif")  
-    soyuzscalar = 1
+    soyuz = loadImage("Assets\\images\\soyuz2.tif")
+    unsh = soyuz.get_size()[1] #unscaled height
+    soyuzscalar = scalarscalar
     soyuz = scaleImage(soyuz, soyuzscalar)
     soyuzsize = soyuz.get_size()
     pygame.mouse.set_visible(True)
 
-    #adding different types of stars
-    base_star = loadImage("Assets\\images\\star.gif")
-    base_star.set_colorkey((255,255,255))
-    stars = []
-    stars += [100, base_star]
-    stars += [101, change_color(base_star, (255,216,0,255), (255, 160, 0, 255), True)]    
-    stars += [102, change_color(base_star, (255,216,0,255), (255, 130, 0, 255), True)]
-    base_star = scaleImage(base_star, 2)
-    stars += [103, base_star]
-    stars += [104, change_color(base_star, (255,216,0,255), (255, 160, 0, 255), True)]    
-    stars += [105, change_color(base_star, (255,216,0,255), (255, 130, 0, 255), True)]
     star_list = generateStars(width, height)
 
     mountains = loadImage("Assets\\images\\cutsceneback.tif")
@@ -38,61 +31,55 @@ def level1(screen, width, height):
     flame_list = all_flames[2:]      
 
     def randomflame(ypos):
-        if (ypos+1400) < (height - height*0.2):
+        if (ypos+1400) < 900:
            return flame_list[random.randint(0, len(flame_list)-1)]
         else:
             return startflamelist[random.randint(0, len(startflamelist)-1)]
 
-    opening_crawl = [line.rstrip('\n') for line in open("assets\\data\\opening_crawl.txt")]
+    opening_crawl = [line.rstrip('\n') for line in open(handlePath("assets\\data\\opening_crawl.txt"))]
     line_spacing = 80
     
-    xpos = width/2 - soyuzsize[0]/2
-    ypos = height
+    xpos = 944
+    ypos = 1080
     dy = height/700
-    namebox = InputGetter([("center", 200), "name", 3], "str")
+    namebox = InputGetter([("center", 490), "name", 3], "str")
     running = True
     while running:
         clock.tick(100)
         screen.fill((0,0,0))
-        star_listLength = int(len(star_list)/8)
-        for i in range(star_listLength):
-            screen.blit(stars[(100 - star_list[(i*8)+4])*2+1], (star_list[i*8], star_list[i*8+1]))
+
+        graphics.printer(screen, star_list, 0, "na", scalarscalar, False)
+        
         screen.blit(mountains, (0, height-mountainsize[1]))
 
         for i in range(len(opening_crawl)):
             Texthelper.write(screen, [("center", ypos + line_spacing * i), opening_crawl[i], 3])
 
-        screen.blit(soyuz, (xpos, ypos + line_spacing * len(opening_crawl) + 100))
-        screen.blit(randomflame(ypos), (xpos-4*soyuzscalar, ypos+soyuzsize[1] + line_spacing *
+        draw.sblit(screen, soyuz, (xpos, ypos + line_spacing * len(opening_crawl) + 100))
+        draw.sblit(screen, randomflame(ypos), (xpos-4, ypos+unsh + line_spacing *
                                         len(opening_crawl) + 100))
-        screen.blit(randomflame(ypos), (xpos+6*soyuzscalar, ypos+soyuzsize[1] + line_spacing *
+        draw.sblit(screen, randomflame(ypos), (xpos+6, ypos+unsh + line_spacing *
                                         len(opening_crawl) + 100))
-        screen.blit(randomflame(ypos), (xpos+10*soyuzscalar, ypos+soyuzsize[1] + line_spacing *
+        draw.sblit(screen, randomflame(ypos), (xpos+10, ypos+unsh + line_spacing *
                                         len(opening_crawl) + 100))
-        screen.blit(randomflame(ypos), (xpos+20*soyuzscalar, ypos+soyuzsize[1] + line_spacing *
+        draw.sblit(screen, randomflame(ypos), (xpos+20, ypos+unsh + line_spacing *
                                         len(opening_crawl) + 100))
 
         
-        if ypos + line_spacing * len(opening_crawl) + 400 > height/2-100:
-            namebox.currenttext = [("center", ypos + line_spacing * len(opening_crawl) + 450), namebox.getData()[1],
-                                   namebox.getData()[2]]
-            Texthelper.write(screen, [("center", ypos + line_spacing * len(opening_crawl) + 400),
-                                      "enter name to continue", 2])
-        else:
+        if not (ypos + line_spacing * len(opening_crawl) + 400 > height/2-100):
+            namebox.update(screen)
             namebox.clicked = True
-            namebox.currenttext = [("center", height/2-50), namebox.getData()[1], namebox.getData()[2]]
-            Texthelper.write(screen, [("center", height/2-100), "enter name to continue", 2])
+            namebox.currenttext = [("center", 490), namebox.getData()[1], namebox.getData()[2]]
+            Texthelper.write(screen, [("center", 440), "enter name to continue", 2])
             if len(namebox.getText()) > 11:
-                Texthelper.write(screen, [("center", height/2+30), "name should be less than 12 characters", 1])
+                Texthelper.write(screen, [("center", 570), "name should be less than 12 characters", 1])
             isValidInput = namebox.getText() != "name" and len(namebox.getText()) < 12
-            isPressed = Texthelper.writeButton(screen, [("center", height/2), "then press here or enter", 2])
+            isPressed = Texthelper.writeButton(screen, [("center", 540), "then press here or enter", 2])
             isKeyed = len(keyboard()) == 1 and keyboard()[0] == "enter"
             if (isPressed or isKeyed) and isValidInput:
                 running = False
                 filehelper.setElement(namebox.getText(), 1, 0)           
             
-        #namebox.currenttext = [("center", ypos+1850), namebox.getData()[1], namebox.getData()[2]]
-        namebox.update(screen)
         collect_inputs()
         
         ypos -= dy        

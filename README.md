@@ -2,7 +2,7 @@
 
 Game idea:
 Protagonist framed for crimes on Earth, exiled to space to collect orbital debris. 
-Protagonist becomes powerful by salvaging peices of old satellites, eventually confronting his framer (President of the World)
+Protagonist becomes powerful by salvaging pieces of old satellites, eventually confronting his framer (President of the World)
 in a boss battle.
 
 Controls:  
@@ -16,9 +16,6 @@ T to activate portals
 
 SHIFT-D for cheats if enabled  
 SHIFT-C for a new random background color
-
-Extra Notes:
-The setupper asks for a resolution to run the game at, but right now it only supports 1920x1080
 
 Background:
 Dystopian future where the Earth can't launch things into space because it is too risky. 

@@ -1,7 +1,11 @@
 from pgx import *
 import graphics
 import game
+
 waitTime = 175
+if platform.system() == "Darwin": #if running on a mac
+    waitTime = 0
+
 maxLevel = 20
 upgrades = Filehelper("assets\\data\\upgrades.txt")
 
@@ -9,6 +13,21 @@ def timedFlip(mode):
     if mode:
         pygame.display.flip()
         pygame.time.wait(waitTime)
+
+#draws square of a list of costs [metal, gas, circuits, currency]
+#location is (x,y) - x=left column of costs, y=y location of "cost:" printout
+def drawCostSquare(screen, location, cost, mode):
+    x,y = location
+    Texthelper.write(screen, [("center", y), "cost:", 3])
+    timedFlip(mode) 
+
+    Texthelper.write(screen, [(x, y+55), str(cost[0]) + " metal", 3], color = (120,120,120))
+    Texthelper.write(screen, [(x+400, y+55), str(cost[1]) + " gas", 3], color = (185,20,20))
+    timedFlip(mode) 
+
+    Texthelper.write(screen, [(x, y+110), str(cost[2]) + " circuits", 3], color = (20,185,20))
+    Texthelper.write(screen, [(x+400, y+110), str(cost[3]) + " credits", 3], color = (230,180,20))
+    timedFlip(mode)
 
 class UpgradeScreenStorage():
     currentStat = -1
@@ -25,7 +44,7 @@ def drawUpgradeScreen(screen, ShipLv, inventory, mode, upgradeType, status, curr
         if upgradeType == "fuel":
             editingIndex = 1
             pointName = "fp"
-        if upgradeType == "torpedoe":
+        if upgradeType == "torpedo":
             editingIndex = 2
             pointName = "ammo"
         driveHead = editingIndex * maxLevel
@@ -42,7 +61,7 @@ def drawUpgradeScreen(screen, ShipLv, inventory, mode, upgradeType, status, curr
     pointName = UpgradeScreenStorage.pointName
     
     pygame.mouse.set_visible(True) #necessary?
-    Texthelper.write(screen, [(0, 0), "metal:" + str(inventory[0]) + "  gas:" + str(inventory[1]) + "  circuits:" + str(inventory[2]) + "  currency:" + str(inventory[3]),3])
+    graphics.drawInventory(screen, inventory)
     Texthelper.write(screen, [("center", 540-235), upgradeType + " upgrade", 6])
     timedFlip(mode)     
 
@@ -51,17 +70,7 @@ def drawUpgradeScreen(screen, ShipLv, inventory, mode, upgradeType, status, curr
     else:
         Texthelper.write(screen, [("center", 540-110), "lv: " + str(ShipLv[editingIndex]) + " +1   " + "Stats: " + str(currentStat) + " +" + str(addedStat) + " " + pointName, 3])
         timedFlip(mode)         
-
-        Texthelper.write(screen, [("center", 540), "cost:", 3])
-        timedFlip(mode) 
-
-        Texthelper.write(screen, [(600, 540+55), str(cost[0]) + " metal", 3])
-        Texthelper.write(screen, [(1000, 540+55), str(cost[1]) + " gas", 3])
-        timedFlip(mode) 
-
-        Texthelper.write(screen, [(600, 540+110), str(cost[2]) + " circuits", 3])
-        Texthelper.write(screen, [(1000, 540+110), str(cost[3]) + " currency", 3])
-        timedFlip(mode)     
+        drawCostSquare(screen, (600, 540), cost, mode)
 
         if inventory[0] >= cost[0] and inventory[1] >= cost[1] and inventory[2] >= cost[2] and inventory[3] >= cost[3]:
             if Texthelper.writeButton(screen, [("center", 540+220), "Upgrade", 3]):
@@ -94,6 +103,40 @@ def drawUpgradeScreen(screen, ShipLv, inventory, mode, upgradeType, status, curr
 
     return status
 
+#drawSpecialUpgrade pulls these based on shipLv index being modified
+upgrade_explanations = [0, 0, 0, "Increases drops by 50%"] 
+
+#these upgrade screens only have one upgrade from 0 to 1 in the shipLv list
+def drawSpecialUpgrade(screen, mode, shipLv, index, title, cost, status, inventory):
+    graphics.drawInventory(screen, inventory)
+    Texthelper.write(screen, [("center", 540-235), title, 6])
+    timedFlip(mode)
+
+    if shipLv[index] > 0:
+        Texthelper.write(screen, [("center", 540), "max level", 3])
+    else:
+        Texthelper.write(screen, [("center", 450), upgrade_explanations[index], 2])
+        timedFlip(mode)         
+        drawCostSquare(screen, (600, 540), cost, mode)
+        
+        if inventory[0] >= cost[0] and inventory[1] >= cost[1] and inventory[2] >= cost[2] and inventory[3] >= cost[3]:
+            if Texthelper.writeButton(screen, [("center", 540+220), "Upgrade", 3]):
+                inventory[0] -= cost[0]
+                inventory[1] -= cost[1]
+                inventory[2] -= cost[2]
+                inventory[3] -= cost[3]
+                shipLv[index] += 1
+                filehelper.set(inventory, 2)
+                filehelper.set(shipLv, 3)
+        else:
+            Texthelper.write(screen, [("center", 540+220), "sorry", 3])
+        timedFlip(mode)       
+     
+    if Texthelper.writeButton(screen, [("center", 540+275), "back", 3]):
+        status = "garageinit"
+
+    return status
+
 def homeinitUI(screen, inventory):
     pygame.mouse.set_visible(True)
     graphics.drawInventory(screen, inventory)
@@ -120,7 +163,7 @@ def homeinitUI(screen, inventory):
     Texthelper.write(screen, [("center", 540+165), "resume", 3])
     pygame.display.flip()
 
-def homeUI(screen, shipInventory, homeInventory):
+def homeUI(screen, shipInventory, homeInventory, freeStuff):
     status = "home"
     graphics.drawInventory(screen, homeInventory)
     Texthelper.write(screen, [("center", 540-180), "home base", 6])
@@ -144,6 +187,17 @@ def homeUI(screen, shipInventory, homeInventory):
     if Texthelper.writeButton(screen, [("center", 540+165), "Resume", 3]):
         status = "game"
         pygame.mouse.set_visible(False)
+
+    if freeStuff:
+        spacing = 60
+        if Texthelper.writeButtonBox(screen, [("left+100", 200), "Free Metal", 3], color = (125, 15, 198)):
+            homeInventory[0] += 10
+        if Texthelper.writeButtonBox(screen, [("left+100", 200 + spacing), "Free Gas", 3], color = (125, 15, 198)):
+            homeInventory[1] += 10
+        if Texthelper.writeButtonBox(screen, [("left+100", 200 + spacing * 2), "Free Circuts", 3], color = (125, 15, 198)):
+            homeInventory[2] += 10
+        if Texthelper.writeButtonBox(screen, [("left+100", 200 + spacing * 3), "Free Credits", 3], color = (125, 15, 198)):
+            homeInventory[3] += 10
 
     #Quests
     #refueling the airmans ship
@@ -333,15 +387,15 @@ def marketUI(screen, inventory, mode):
 
     status = "market"
 
-    Texthelper.write(screen, [(500, 430), "metal:", 3])
+    Texthelper.write(screen, [(500, 430), "metal:", 3], color=(120,120,120))
     plusminusrow(screen, metalbox, 430)
     timedFlip(mode)
 
-    Texthelper.write(screen, [(500, 485), "gas:", 3])
+    Texthelper.write(screen, [(500, 485), "gas:", 3], color=(185,20,20))
     plusminusrow(screen, gasbox, 485)
     timedFlip(mode)
         
-    Texthelper.write(screen, [(500, 540), "circuits:", 3])
+    Texthelper.write(screen, [(500, 540), "circuits:", 3], color=(20,185,20))
     plusminusrow(screen, circuitbox, 540)
     timedFlip(mode)
 
@@ -350,7 +404,7 @@ def marketUI(screen, inventory, mode):
     buyvalue = metalbox.getIntText()*BUYVALUE[0] + gasbox.getIntText() * BUYVALUE[1] + circuitbox.getIntText() *BUYVALUE[2]
     if (sellvalue > 0):
         if not ableToSell:
-            Texthelper.write(screen, [("center", 670), "you cannot sell what you do not have", 1])
+            Texthelper.write(screen, [("center", 670), "you cannot sell what you do not have", 1], color=(178,34,34))
             Texthelper.writeBox(screen, [("center", 625), "sell for " + str(sellvalue) + " credits", 3], color=(178,34,34))
         elif Texthelper.writeButtonBox(screen, [("center", 625), "sell for " + str(sellvalue) + " credits", 3], color=(34, 178, 34)):
             inventory[0] -= metalbox.getIntText()
@@ -362,7 +416,7 @@ def marketUI(screen, inventory, mode):
         timedFlip(mode)
 
         if buyvalue > inventory[3]:
-            Texthelper.write(screen, [("center", 745), "you cannot afford this", 1])
+            Texthelper.write(screen, [("center", 745), "you cannot afford this", 1], color=(178,34,34))
             Texthelper.writeBox(screen, [("center", 700), "buy for " + str(buyvalue) + " credits", 3], color=(178,34,34))
         elif Texthelper.writeButtonBox(screen, [("center", 700), "buy for " + str(buyvalue) + " credits", 3], color=(34, 178, 34)):
             inventory[0] += metalbox.getIntText()
@@ -384,8 +438,7 @@ def marketUI(screen, inventory, mode):
 def garageUI(screen, ShipLv, homeInventory, mode):
     status = "garage"
     inventory = homeInventory
-    largestring = "metal:" + str(inventory[0]) + "  gas:" + str(inventory[1]) + "  circuits:" + str(inventory[2]) + "  currency:" + str(inventory[3])
-    Texthelper.write(screen, [(0, 0), largestring, 3])
+    graphics.drawInventory(screen, inventory)
     Texthelper.write(screen, [("center", 540-180), "upgrade shop", 6])
     timedFlip(mode)
 
@@ -406,8 +459,17 @@ def garageUI(screen, ShipLv, homeInventory, mode):
     else:
         Texthelper.write(screen, [(1000, 540+55), "locked", 3])
     timedFlip(mode)
+    
+    if ShipLv[3] == 0:
+        Texthelper.write(screen, [(1200, 660), "[onetime]", 1])
+        if Texthelper.writeButton(screen, [("center", 675), "upgrade scavenging module", 3]):
+            status = "scavengeUpgradeinit"
+    else:
+        Texthelper.write(screen, [("center", 675), "superior scavenging module", 3])
+        
+    
 
-    if Texthelper.writeButton(screen, [("center", 540+110), "back", 3]):
+    if Texthelper.writeButton(screen, [("center", 850), "back", 3]):
         status = "homeinit"
 
     return status
@@ -433,7 +495,7 @@ def setupShop(shipLv, shipInventory, homeInventory, currentStats, totalStats, co
     shopStorage.color = color
 
 #subsection of the great big main loop that deals with the various shops of zvezda
-def home(screen):
+def home(screen, freeStuff):
     shopStatus = shopStorage.shopStatus
     shipLv = shopStorage.shipLv
     shipInventory = shopStorage.shipInventory
@@ -477,11 +539,17 @@ def home(screen):
         shopStatus = drawUpgradeScreen(screen, shipLv, homeInventory, False, "fuel", "fuelUpgrade", currentStats, totalStats)
 
     elif shopStatus == "ammoUpgradeinit":
-        drawUpgradeScreen(screen, shipLv, homeInventory, True, "torpedoe", "N/A", currentStats, totalStats)
+        drawUpgradeScreen(screen, shipLv, homeInventory, True, "torpedo", "N/A", currentStats, totalStats)
         shopStatus = "ammoUpgrade"
 
     elif shopStatus == "ammoUpgrade":
-        shopStatus = drawUpgradeScreen(screen, shipLv, homeInventory, False, "torpedoe", "ammoUpgrade", currentStats, totalStats)
+        shopStatus = drawUpgradeScreen(screen, shipLv, homeInventory, False, "torpedo", "ammoUpgrade", currentStats, totalStats)
+
+    elif shopStatus == "scavengeUpgradeinit":
+        shopStatus = drawSpecialUpgrade(screen, True, shipLv, 3, "Upgrade Scavenging Module", [10, 2, 2, 35], "scavengeUpgrade", homeInventory)
+
+    elif shopStatus == "scavengeUpgrade":
+        shopStatus = drawSpecialUpgrade(screen, False, shipLv, 3, "Upgrade Scavenging Module", [10, 2, 2, 35], shopStatus, homeInventory)
 
     elif shopStatus == "garageinit":
         garageUI(screen, shipLv, homeInventory, True)
@@ -495,7 +563,7 @@ def home(screen):
         shopStatus = "home"
     
     elif shopStatus == "home":
-        shopStatus = homeUI(screen, shipInventory, homeInventory)
+        shopStatus = homeUI(screen, shipInventory, homeInventory, freeStuff)
     
     shopStorage.shopStatus = shopStatus
     pygame.display.flip()
@@ -504,7 +572,7 @@ def home(screen):
     else:
         return shopStatus
 
-def drawPauseUI(screen, mode):
+def drawPauseUI(screen, backstatus, mode):
     status = "paused"
     Texthelper.write(screen, [("center", 400), "Paused", 6])
     timedFlip(mode)
@@ -516,7 +584,7 @@ def drawPauseUI(screen, mode):
 
     if Texthelper.writeButton(screen, [("center", 485 + spacing), "Options", 2]):
         status = "optionsinit"
-        OptionsInput.backStatus = "pauseinit"
+        OptionsInput.backStatus = backstatus
     timedFlip(mode)
 
     if Texthelper.writeButton(screen, [("center", 485 + spacing * 2), "Quit to menu", 2]):
@@ -528,16 +596,16 @@ def drawPauseUI(screen, mode):
     pygame.display.flip()
     return status
 
-def mapscreenUI(screen, sector_map_coordinates, discoveredSectors, sectornum, DEVMODE, clearedSector):
+def mapscreenUI(screen, sector_map_coordinates, discoveredSectors, sectornum, DEVMODE, cheats_settings, clearedSector):
     status = "mapscreen"
 
     line_color = (255, 255, 255)
     infinitypic = graphics.Images.get("infinity")
     for i in sector_map_coordinates.keys():
-        if discoveredSectors[i] or DEVMODE: #only visited sectors are drawn
+        if discoveredSectors[i] or (DEVMODE and cheats_settings[4]): #only visited sectors are drawn
             graphics.drawSector(screen, sector_map_coordinates[i], i, sectornum, clearedSector[i])
             if game.sectorGeneration(i): #draws infinity signs on map if regenerating sector
-                screen.blit(infinitypic, (sector_map_coordinates[i][0] - 10, sector_map_coordinates[i][1] + 15)) 
+                draw.sblit(screen, infinitypic, (sector_map_coordinates[i][0] - 10, sector_map_coordinates[i][1] + 15))
             #draws all links between sectors
             connections = game.sectorDestinations(i)
             for j in range(4):
@@ -564,7 +632,7 @@ def mapscreenUI(screen, sector_map_coordinates, discoveredSectors, sectornum, DE
                     if (not discoveredSectors[adjacentSector]) and (not DEVMODE):
                         graphics.drawSector(screen, sector_map_coordinates[adjacentSector], "?", sectornum, False)
                         
-    if Texthelper.writeButton(screen, [(180, 520), "[Commence Flying]", 2.5]):
+    if Texthelper.writeButton(screen, [(245, 705), "[Commence Flying]", 2.5]):
         status = "game"
         pygame.mouse.set_visible(False)
         
@@ -574,7 +642,7 @@ class OptionsInput():
     width = ""
     height = ""
     
-    #directly set by mainbefore options is called, controls what status is called by the back button
+    #directly set by main before options is called, controls what status is called by the back button
     backStatus = "OptionsInput.backStatus needs to be set before use"
 
     def __init__(self, resolution):
@@ -585,65 +653,117 @@ def optionsUIinit(screen, file_settings):
     pygame.mouse.set_visible(True)
     OptionsInput([file_settings[0], file_settings[1]])
 
-def optionsUI(screen, spacing, file_settings):
-    status = "options"
+def drawSettingsOption(screen, settingName, x, x2, y, file_settings, settingsIndex, **kwargs): #settingsIndex is the index of the setting in file_settings
+    #kwargs are for specifying the on/off text of the setting. Default is "On"/"Off"
+    Texthelper.write(screen, [(x, y), settingName + ":", 3])
+    if file_settings[settingsIndex]:
+        if 'ontext' in kwargs:
+            text = kwargs['ontext']
+        else:
+            text = "On"
+    else:
+        if 'offtext' in kwargs:
+            text = kwargs['offtext']
+        else:
+            text = "Off"
+    if Texthelper.writeButton(screen, [(x2, y), text, 3]):
+        file_settings[settingsIndex] = not file_settings[settingsIndex]
 
-    screen.fill((0, 0, 0))
+def optionsUI(screen, file_settings):
+    status = "options"
+    spacing = 50
+
+    if file_settings[4] and Texthelper.writeButton(screen, [(1250, 456), "[Cheats settings?]", 2], color = (125, 15, 198)):
+        status = "cheatsmenu"
 
     Texthelper.write(screen, [("center", 200), "Options", 6])
 
-    Texthelper.write(screen, [(600, 400), "Resolution:", 3])
-
+    x = 500 #settings coords
+    x2 = 1000
+    
+    Texthelper.write(screen, [(x, 400), "Resolution:", 3])
     OptionsInput.width.update(screen)
     OptionsInput.height.update(screen)
     Texthelper.write(screen, [(1000 + 175, 400), "x", 3])
     file_settings[0] = OptionsInput.width.getIntText()
     file_settings[1] = OptionsInput.height.getIntText()
 
-    Texthelper.write(screen, [(600, 400 + spacing), "Cheats:", 3])
-    if (file_settings[4]):
-        text = "Enabled"
-    else:
-        text = "Disabled"
-    if Texthelper.writeButton(screen, [(1000, 400 + spacing), text, 3]):
-        file_settings[4] = not file_settings[4]
+    drawSettingsOption(screen, "Cheats", x, x2, 400 + spacing * 1, file_settings, 4, ontext = "Enabled", offtext = "Disabled")
 
-    Texthelper.write(screen, [(600, 400 + spacing * 2), "Fullscreen:", 3])
-    if (file_settings[2]):
-        text = "On"
-    else:
-        text = "Off"
-    if Texthelper.writeButton(screen, [(1000, 400 + spacing * 2), text, 3]):
-        file_settings[2] = not file_settings[2]
+    drawSettingsOption(screen, "Fullscreen", x, x2, 400 + spacing * 2, file_settings, 2)
 
-    Texthelper.write(screen, [(600, 400 + spacing * 3), "Ship Drag:", 3])
-    if (file_settings[5]):
-        text = "On"
-    else:
-        text = "Off"
-    if Texthelper.writeButton(screen, [(1000, 400 + spacing * 3), text, 3]):
-        file_settings[5] = not file_settings[5]
+    drawSettingsOption(screen, "Ship Drag", x, x2, 400 + spacing * 3, file_settings, 5)
 
-    if Texthelper.writeButtonBox(screen, [("center", 400 + spacing * 4.5), "Reset Gamedata", 3], color = (178, 34, 34)):
+    drawSettingsOption(screen, "FPS Counter", x, x2, 400 + spacing * 4, file_settings, 6)
+
+    drawSettingsOption(screen, "Text Scrolling", x, x2, 400 + spacing * 5, file_settings, 7, ontext = "Fast", offtext = "Slow")
+
+    if Texthelper.writeButtonBox(screen, [("center", 400 + spacing * 6.5), "Reset Gamedata", 3], color = (178, 34, 34)):
         status = "menuinit"
         default = Filehelper("Assets\\saves\\defaultgamedata.txt")
         default.copyTo(filehelper)
 
         filehelper.setElement("2", 0, 3)
 
-    if Texthelper.writeButtonBox(screen, [("center", 400 + spacing * 6), "Restore Default Settings", 3]):
+    if Texthelper.writeButtonBox(screen, [("center", 400 + spacing * 8), "Restore Default Settings", 3]):
         default = Filehelper("Assets\\saves\\defaultgamedata.txt")
         default_settings = default.get(0)
         default_settings[3] = file_settings[3] #don't want to change gamestate
         for i in range(len(file_settings)): #has to be like this becuase of scope
             file_settings[i] = default_settings[i]
 
+    Texthelper.write(screen, [("center", 1000), "some settings may not update until game is restarted", 1])
+
     if Texthelper.writeButton(screen, [("center", 900), "Back", 2]):
         screen.fill((0, 0, 0))
         status = OptionsInput.backStatus
 
-    Texthelper.write(screen, [("center", 1000), "some settings may not update until game is restarted", 1])
+    pygame.display.flip()
+    return status
+
+def cheatsMenuUI(screen, cheats_settings):
+    status = "cheatsmenu"
+    spacing = 50
+
+    Texthelper.write(screen, [("center", 200), "Cheats Options", 6], color = (125, 15, 198))
+
+    drawSettingsOption(screen, "Infinite Armor", 600, 1100, 400, cheats_settings, 0)
+
+    drawSettingsOption(screen, "Infinite Fuel", 600, 1100, 400 + spacing * 1, cheats_settings, 1)
+
+    drawSettingsOption(screen, "Infinite Ammo", 600, 1100, 400 + spacing * 2, cheats_settings, 2)
+
+    drawSettingsOption(screen, "Teleportation", 600, 1100, 400 + spacing * 3, cheats_settings, 3, ontext = "Enabled", offtext = "Disabled")
+
+    drawSettingsOption(screen, "Map Visibility", 600, 1100, 400 + spacing * 4, cheats_settings, 4)
+
+    drawSettingsOption(screen, "Hitboxes", 600, 1100, 400 + spacing * 5, cheats_settings, 5, ontext = "Visible", offtext = "Not Visible")
+
+    drawSettingsOption(screen, "Free Stuff", 600, 1100, 400 + spacing * 6, cheats_settings, 6)
+
+    if not any(cheats_settings):
+        Texthelper.write(screen, [("center", 800), "What's the point of cheats if everything's turned off?", 3], color = (125, 15, 198))
+
+    if Texthelper.writeButton(screen, [("center", 900), "Back", 2]):
+        status = "optionsinit"
 
     pygame.display.flip()
     return status
 
+def creditsUI(screen, sdlnum):
+    status = "credits"
+    badge = graphics.Images.get("pygamebadge")
+    draw.sblit(screen, badge, ("right-500", 140))
+    Texthelper.write(screen, [("right-500", 950), "running on SDL version " + sdlnum, 1.5])
+    Texthelper.write(screen, [(370, 220), "Created by", 5])
+    Texthelper.write(screen, [(475, 300), "Charlie Hayden", 3], color=(30,144,255))
+    Texthelper.write(screen, [(370, 420), "With help from", 4])
+    Texthelper.write(screen, [(475, 500), "Colby Smith", 3], color=(138,43,226))
+    Texthelper.write(screen, [(475, 550), "Julian Baldwin", 3], color=(255,120,0))
+    Texthelper.write(screen, [(475, 600), "Nick Bradley", 3], color=(35,132,37))
+    Texthelper.write(screen, [("right-580", 530), "Voice Actors", 4])
+    Texthelper.write(screen, [("right-505", 610), "Palmer Moe", 3], color=(255,40,0))
+    Texthelper.write(screen, [("right-950",900), "Sound effects credited in Assets/sounds/assetsources.txt", 1.5])
+    if Texthelper.writeButton(screen, [("center", 1000), "Back", 3]):
+        status = "menuinit" 
+    return status

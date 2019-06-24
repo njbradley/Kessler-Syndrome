@@ -120,7 +120,7 @@ def rotationCachingHelper(filepath, spritesheetWidth, spritesheetHeight, sprites
 
 #must be called after scaling is fully set up, not before
 #starts image caching of rotated images
-def init(d_asteroids, d_parts, d_sats, graphlist, scalar2, scalar3):
+def init(d_asteroids, d_parts, d_sats, graphlist, scalar2, scalar3, scalarscalar):
     #adding all asteroid images/rotations
     rotationCachingHelper("Assets\\images\\smallasteroids.gif", 40, 40, 1, 4, 70, scalar2)
     rotationCachingHelper("Assets\\images\\mediumasteroids.gif", 50, 50, 1, 4, 80, scalar2)
@@ -133,47 +133,74 @@ def init(d_asteroids, d_parts, d_sats, graphlist, scalar2, scalar3):
         Images.addRotate(pixelStuff[i], surf)
 
     #adding images for info bars
-    Images.add("fuelpic", scaleImage(loadImage("Assets\\images\\fuelcanister.tif"), 2))
-    Images.add("armorpic", loadImage("Assets\\images\\armor.tif"))
-    Images.add("shotpic", loadImage("Assets\\images\\missile.png"), colorkey=(255,255,255))
+    Images.add("fuelpic", scaleImage(loadImage("Assets\\images\\fuelcanister.tif"), 2*scalarscalar))
+    Images.add("armorpic", scaleImage(loadImage("Assets\\images\\armor.tif"), scalarscalar))
+    Images.add("shotpic", scaleImage(loadImage("Assets\\images\\missile.png"), scalarscalar), colorkey=(255,255,255))
 
     #adding other icons
-    Images.add("infinity", loadImage("Assets\\images\\infinity.tif"))
+    Images.add("infinity", scaleImage(loadImage("Assets\\images\\infinity.tif"), scalarscalar))
+    Images.add("pygamebadge", scaleImage(loadImage("Assets\\images\\pygame-badge-SMA-unscaled.png"), 2.5*scalarscalar))
 
     #adding miscellaneous other object images
-    Images.add(0, scaleImage(loadImage("Assets\\images\\zvezda.tif"), 2))
-    Images.addRotate(7, scaleImage(loadImage("Assets\\images\\alienMines.tif"), 2))
-    Images.add(9, scaleImage(loadImage("Assets\\images\\ionBlast.tif"), .5))
-    Images.addRotate(120, scaleImage(loadImage("Assets\\images\\aliendrone.gif"), 1.5), colorkey=(255,255,255))
-    Images.addRotate(121, scaleImage(loadImage("Assets\\images\\spiker.gif"),2), colorkey=(255,255,255))
-    Images.addRotate(122, loadImage("Assets\\images//alienshot.gif"), colorkey=(255,255,255))
+    Images.add(0, scaleImage(loadImage("Assets\\images\\zvezda.tif"), 2*scalarscalar))
+    Images.add(200, scaleImage(loadImage("Assets\\images\\fuelstation.tif"), 2*scalarscalar))
+    Images.addRotate(7, scaleImage(loadImage("Assets\\images\\alienMines.tif"), 2*scalarscalar))
+    Images.add(9, scaleImage(loadImage("Assets\\images\\ionBlast.tif"), .5*scalarscalar))
 
+    #aliens
+    Images.addRotate(120, scaleImage(loadImage("Assets\\images\\aliendrone.gif"), 1.5*scalarscalar), colorkey=(255,255,255))
+    Images.addRotate(121, scaleImage(loadImage("Assets\\images\\spiker.gif"), 2*scalarscalar), colorkey=(255,255,255))
+    Images.addRotate(122, scaleImage(loadImage("Assets\\images\\alienshot.gif"), scalarscalar), colorkey=(255,255,255))
+    #aliens - alien mines
+    imageList = spriteSheetBreaker(loadImage("Assets\\images\\alienbomb.gif"), 19, 19, 0, 0, 1, 6)
+    for i in range(len(imageList)):
+        image = imageList[i]
+        image.set_colorkey((255,255,255))
+        image = scaleImage(image, 2*scalarscalar)
+        if i == 0:
+            Images.addRotate(123, image) #reference image at 123 for hitboxes
+        Images.addRotate(123 + (i+1)/100, image)
+        
     #adding different types of stars
     base_star = loadImage("Assets\\images\\star.gif")
+    base_star_unscaled = base_star
     base_star.set_colorkey((255,255,255))
+    base_star = scaleImage(base_star, scalarscalar)
     Images.add(100, base_star)    
     Images.add(101, change_color(base_star, (255,216,0,255), (255, 160, 0, 255), True))    
     Images.add(102, change_color(base_star, (255,216,0,255), (255, 130, 0, 255), True))
-    base_star = scaleImage(base_star, 2)
+    base_star = scaleImage(base_star_unscaled, 2*scalarscalar)
     Images.add(103, base_star)
     Images.add(104, change_color(base_star, (255,216,0,255), (255, 160, 0, 255), True))    
     Images.add(105, change_color(base_star, (255,216,0,255), (255, 130, 0, 255), True))
     
     #adding ship, no rotation because it rotates in real time
     #loads up spritesheet and loads them all up under separate IDs
-    imageList = spriteSheetBreaker(loadImage("Assets\\images\\ships.png"), 24, 60, 0, 0, 1, 4)
+    imageList = spriteSheetBreaker(loadImage("Assets\\images\\ships.png"), 24, 60, 0, 0, 1, 5)
     for i in range(len(imageList)):
         imageList[i].set_colorkey((255,255,255))
+        imageList[i] = scaleImage(imageList[i], scalar3)
     Images.add(1.1, imageList[0])
     Images.add(1.2, imageList[1])
     Images.add(1.3, imageList[2])
     Images.add(1.4, imageList[3])
+    Images.add(1.5, imageList[4])
+
+    #adding downed fighters
+    imageList = spriteSheetBreaker(loadImage("Assets\\images\\fighters.gif"), 42, 22, 0, 0, 2, 2)
+    for i in range(len(imageList)):
+        imageList[i].set_colorkey((255,255,255))
+        imageList[i] = scaleImage(imageList[i], 1.1*scalarscalar)
+        Images.addRotate(130+i, imageList[i])
 
     #adding derelict ship, no rotation because it's always in the same orientation
-    image = loadImage("Assets\\images\\derelict.gif")
+    image = scaleImage(loadImage("Assets\\images\\derelict.gif"), scalarscalar)
     image.set_colorkey((255,255,255))
     change_color(image, (0,0,0,255), (25,25,25,255))
     Images.add(110, image)
+
+    #adding president's ship
+    Images.addRotate(666, scaleImage(loadImage("Assets\\images\\protoprez3.gif"), scalarscalar), colorkey=(255,255,255))
 
 #reorders the list so it will print in the correct order
 background = [100, 101, 102, 103, 104, 105, 106, 107, 108, 109]
@@ -194,17 +221,14 @@ def reorderObjectList(object_list):
 SHIPSTATE = 1 #set in main, controls which of the durability stages of the ship prints (not always 1)
 
 #the nuts and bolts of printing the things    
-def crayprinter(screen, xpos, ypos, object_number, rotation, decayLife, scalar1, scalar3, graphlist, scalarscalar, flame): 
+def crayprinter(screen, xpos, ypos, object_number, rotation, decayLife, scalar3, graphlist, scalarscalar, flame, special): 
     colliderect = ""
-    if 99 < object_number < 110: #draws stars
-        image = Images.get(object_number)
-        screen.blit(image, (xpos, ypos))
-        
+    
     if object_number == 0: #draws zvezda
         image = Images.get(0)
         screen.blit(image, (xpos, ypos))
             
-    if object_number == 1 or object_number == 5: #draws main ship
+    elif object_number == 1 or object_number == 5: #draws main ship
         image = rotatePixelArt(Images.get(1+SHIPSTATE/10), -rotation.getRotation())
         screen.blit(image, (int(xpos-0.5*image.get_width()), int(ypos-0.5*image.get_height())))
         colliderect = [int(xpos-0.5*image.get_width()), int(ypos-0.5*image.get_height()), image.get_width(),
@@ -219,27 +243,30 @@ def crayprinter(screen, xpos, ypos, object_number, rotation, decayLife, scalar1,
             pygame.gfxdraw.filled_polygon(screen, flame_pointlist, (255,100,0))
         flame = False
         
-    if object_number == 2 or object_number == 8: #draws missiles (id 8 are alien missiles)
+    elif object_number == 2 or object_number == 8: #draws missiles (id 8 are alien missiles)
         pygame.draw.circle(screen, (255, 255, 255), (int(xpos), int(ypos)), 2, 0)
         
-    if object_number == 4: #draws explosion effects
+    elif object_number == 4: #draws explosion effects
         pygame.draw.circle(screen, (255, 255, 255), (int(xpos), int(ypos)), 1, 0)
                 
-    if object_number == 9: #draws alien blasts
+    elif object_number == 9: #draws alien blasts
         scale = 1 + (.1 * (300 - decayLife))
         image = scaleImage(Images.get(9), scale)
         screen.blit(image, (int(xpos-0.5*image.get_width()), int(ypos-0.5*image.get_height())))
         colliderect = Images.getHitbox(xpos, ypos, 9, rotation.getRotation())
         Images.scaleHitbox(colliderect, scale)  
             
-    if object_number == 110: #draws derelict ship
-        image = Images.get(110)
+    elif object_number == 123:
+        image = Images.get(special.getFrameNum(), rotation.getRotation())
         screen.blit(image, (int(xpos-0.5*image.get_width()), int(ypos-0.5*image.get_height())))
-        colliderect = Images.getHitbox(xpos, ypos, 110, rotation.getRotation())
+        colliderect = Images.getHitbox(xpos, ypos, 123, rotation.getRotation())
 
     else:
         try:
-            image = Images.get(object_number, rotation.getRotation())
+            if rotation.getRotating():
+                image = Images.get(object_number, rotation.getRotation())
+            else:
+                image = Images.get(object_number)
             screen.blit(image, (int(xpos-0.5*image.get_width()), int(ypos-0.5*image.get_height())))
             colliderect = Images.getHitbox(xpos, ypos, object_number, rotation.getRotation())
         except:
@@ -248,7 +275,7 @@ def crayprinter(screen, xpos, ypos, object_number, rotation, decayLife, scalar1,
     return colliderect
 
 #takes care of the printing logic
-def printer(screen, object_list, scalar1, scalar3, graphlist, scalarscalar, flame):
+def printer(screen, object_list, scalar3, graphlist, scalarscalar, flame):
     object_list = reorderObjectList(object_list)
     #needed for testing which direction things are off the screen
     width, height = screen.get_size()
@@ -262,10 +289,11 @@ def printer(screen, object_list, scalar1, scalar3, graphlist, scalarscalar, flam
         ypos = object_list[i+1]
         object_number = object_list[i+4] #object type
         rotation = object_list[i+5] #rotation position
+        special = object_list[i+6]
         decayLife = object_list[i+7]
-
-        colliderect = crayprinter(screen, xpos, ypos, object_number, rotation, decayLife, scalar1, scalar3, graphlist, scalarscalar,
-                                  flame)
+        
+        colliderect = crayprinter(screen, xpos, ypos, object_number, rotation, decayLife, scalar3, graphlist, scalarscalar,
+                                  flame, special)
         if colliderect:
             if not screen.get_rect().contains(colliderect):
                 if left.colliderect(colliderect):
@@ -278,8 +306,8 @@ def printer(screen, object_list, scalar1, scalar3, graphlist, scalarscalar, flam
                 elif down.colliderect(colliderect):
                     ypos -= height
                 
-                crayprinter(screen, xpos, ypos, object_number, rotation, decayLife, scalar1, scalar3, graphlist, scalarscalar,
-                            flame)
+                crayprinter(screen, xpos, ypos, object_number, rotation, decayLife, scalar3, graphlist, scalarscalar,
+                            flame, special)
 
 #flashing alerts for low fuel and armor
 class FlashyBox:
@@ -312,7 +340,7 @@ class InfoBars:
     def init(fuelalert, armoralert):
         InfoBars.fuelalert = fuelalert
         InfoBars.armoralert = armoralert
-
+        
     #prints out the fuel and armor bars
     def draw(screen, currentfuel, totalfuel, currentarmor, totalarmor, ammunition, totalammunition):
         fuelpic = Images.get("fuelpic")
@@ -320,19 +348,19 @@ class InfoBars:
         shotpic = Images.get("shotpic")
         #fuel
         InfoBars.fuelalert.update(screen, currentfuel/totalfuel)
-        screen.blit(fuelpic, (1600, 1000))
-        pgx.draw.rect(screen, (178,34,34), [1650, 1000, 200, 50])
-        pgx.draw.rect(screen, (139,0,0), [1650, 1000, 200*currentfuel/totalfuel, 50])
+        pgx.draw.sblit(screen, fuelpic, ("right-270", 1000))
+        pgx.draw.rect(screen, (178,34,34), ["right-220", 1000, 200, 50])
+        pgx.draw.rect(screen, (139,0,0), ["right-220", 1000, 200*currentfuel/totalfuel, 50])
         #Texthelper.write(screen, [(1665, 1005), str(currentfuel), 3])
         #armor
         InfoBars.armoralert.update(screen, currentarmor/totalarmor)
-        screen.blit(armorpic, (1600, 930))
-        pgx.draw.rect(screen, (128,128,128), [1650, 930, 200, 50])
-        pgx.draw.rect(screen, (64,64,64), [1650, 930, 200*currentarmor/totalarmor, 50])
+        pgx.draw.sblit(screen, armorpic, ("right-270", 930))
+        pgx.draw.rect(screen, (128,128,128), ["right-220", 930, 200, 50])
+        pgx.draw.rect(screen, (64,64,64), ["right-220", 930, 200*currentarmor/totalarmor, 50])
         #Texthelper.write(screen, [(1665, 935), str(currentarmor), 3])
         #ammunition
-        screen.blit(shotpic, (1600, 860))
-        Texthelper.write(screen, [(1665, 865), str(ammunition) + "/" + str(totalammunition), 3])
+        pgx.draw.sblit(screen, shotpic, ("right-270", 860))
+        Texthelper.write(screen, [("right-205", 865), str(ammunition) + "/" + str(totalammunition), 3])
 
 #used by the map to actually draw out the sectors
 def drawSector(screen, location, number, currentsector, cleared):
@@ -352,7 +380,8 @@ def drawSector(screen, location, number, currentsector, cleared):
 
 #used in UIscreens and the main game loop to display the inventory
 def drawInventory(screen, shipInventory):
-    inventory_string = "metal:" + str(shipInventory[0]) + "   gas:" + str(shipInventory[1]) 
-    inventory_string += "   circuits:" + str(shipInventory[2]) + "    currency:" + str(shipInventory[3])
-    Texthelper.write(screen, [(0, 0), inventory_string,3])
+    Texthelper.write(screen, [("left+10",10), "metal:" + str(shipInventory[0]), 3], color = (120,120,120))
+    Texthelper.write(screen, [("left+310",10), "gas:" + str(shipInventory[1]), 3], color = (185,20,20))
+    Texthelper.write(screen, [("left+550",10), "circuits:" + str(shipInventory[2]), 3], color = (20,185,20))
+    Texthelper.write(screen, [("left+935",10), "credits:" + str(shipInventory[3]), 3], color = (230,180,20))
     

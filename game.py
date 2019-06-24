@@ -1,9 +1,19 @@
 import random
 import math
+import graphics
 from pgx import loadImage
 from pgx import spriteSheetBreaker
 from pgx import scaleImage
 from pgx import filehelper
+import pgx
+
+#stores a couple constants so they can be accessed without passing variables
+class GameConstants():
+    width = -1
+    height = -1
+    max_speed = -1
+    drag = []
+    step_drag = -1
 
 class RotationState():
     def __init__(self, rotationPos, rotationMom):
@@ -32,15 +42,15 @@ class RotationState():
     def getRotating(self):
         return self.rotating
 
-    def rotate(self):
-        self.pos += self.mom/7 #the divided by moderates the speed of rotation
+    def rotate(self, pdt=1):
+        self.pos += self.mom/7*pdt #the divided by moderates the speed of rotation
         if self.pos >= 360:
             self.pos -= 360
         if self.pos <= -360:
             self.pos += 360
 
-    def rotateBy(self, value):
-        self.pos += value
+    def rotateBy(self, value, pdt=1):
+        self.pos += value * pdt
 
 class AITools():
     #constants directly set by main
@@ -57,9 +67,7 @@ class AITools():
     #releases a shot in the direction specified
     #currently starts from x,y - so usually the center of the entity
     #optional arg allows it to shoot entities of different types
-    def shoot(object_list, self_loc, angle, shot_type=2, lifespan=-1):
-        xpos = object_list[self_loc]
-        ypos = object_list[self_loc+1]
+    def shoot(xpos, ypos, object_list, self_loc, angle, shot_type=2, lifespan=-1):
         angle = -(angle-90)
         thrust_vector = (math.sin(math.radians(angle)), math.cos(math.radians(angle)))
         xmom = object_list[self_loc+2] + thrust_vector[0] * AITools.missile_accel
@@ -67,28 +75,118 @@ class AITools():
         if lifespan < 0:
             lifespan = AITools.missile_lifespan
         if shot_type == 122: #alien shot
+            angle = -angle + 90
             shot = [xpos, ypos, xmom, ymom, shot_type, RotationState(angle, 0), "NA", lifespan]
         else:
             shot = [xpos, ypos, xmom, ymom, shot_type, RotationState("NA", "NA"), "NA", lifespan]
         object_list += shot
 
+    def releaseMine(object_list, self_loc, angle):
+        xpos = object_list[self_loc]
+        ypos = object_list[self_loc+1]
+        angle = -(angle-90)
+        thrust_vector = (math.sin(math.radians(angle)), math.cos(math.radians(angle)))
+        xmom = object_list[self_loc+2] + thrust_vector[0] * AITools.missile_accel / 3
+        ymom = object_list[self_loc+3] + thrust_vector[1] * AITools.missile_accel / 3
+        object_list += [xpos, ypos, xmom, ymom, 123, RotationState(random.randint(0,360),
+                        random.randint(-10,10)), AlienMineAI(), 1]
+
+    def releaseDrone(object_list, self_loc, angle):
+        xpos = object_list[self_loc]
+        ypos = object_list[self_loc+1]
+        angle = -(angle-90)
+        thrust_vector = (math.sin(math.radians(angle)), math.cos(math.radians(angle)))
+        xmom = object_list[self_loc+2] + thrust_vector[0] * AITools.missile_accel / 3
+        ymom = object_list[self_loc+3] + thrust_vector[1] * AITools.missile_accel / 3
+        object_list += [xpos, ypos, xmom, ymom, 120, RotationState(random.randint(0,360),
+                        random.randint(-10,10)), DroneAI(), 1]
+
+    #takes in the objectlist and two locations, uses the missile accel to find the angle for
+    #the shooter to hit the target, taking into account both of their momentums
+    def getInterceptAngle(object_list, self_loc, target_loc):
+        shooter = object_list[self_loc:self_loc+8]
+        target = object_list[target_loc:target_loc+8]
+        coolTicker = 0
+        colliding = False
+        while not colliding:
+            #doPhysics(shooter)
+            #doPhysics(target)
+            xdiff = target[0] + target[2]*coolTicker - shooter[0]
+            ydiff = target[1] - target[3]*coolTicker - shooter[1]
+            distance = (xdiff**2 + ydiff**2)**0.5
+            if (xdiff**2 + ydiff**2)**0.5 < AITools.missile_accel * coolTicker:
+                colliding = True
+                if (shooter[1] - target[1]) > 0:
+                    angle = math.degrees(math.acos(xdiff/distance))
+                else:
+                    angle = 360 - math.degrees(math.acos(xdiff/distance))
+                return angle
+    
+            if coolTicker > 5000:
+                break
+            
+            coolTicker += 1
+
+    #combines the getInterceptAngle and shoot functions into one ~hopefully~ seamless package
+    def shootAt(object_list, self_loc, target_loc, shot_type=2, lifespan=-1):
+        xpos = object_list[self_loc]
+        ypos = object_list[self_loc+1]
+        angle = AITools.getInterceptAngle(object_list, self_loc, target_loc)
+        shoot(xpos, ypos, object_list, self_loc, angle, shot_type, lifespan)
+
 class DroneAI():
     def __init__(self):
-        pass
+        self.progression = 0
+        self.shotCounter = 0
+        self.direction = random.randint(0,1)
+        self.speed = 2
+        if self.direction == 0:
+            self.direction = -1
 
-    def update(self, object_list, self_loc):
-        distance = AITools.distanceBetween(object_list, 0, self_loc)
-
-        #pulling entities out of the list for ease of change
+    def attack(self, screen, object_list, self_loc):
         droneShip = object_list[self_loc:self_loc+8]
         humanShip = object_list[0:8]
+        droneShip[2] = math.cos(math.radians(droneShip[5].getRotation()))*self.speed
+        droneShip[3] = math.sin(math.radians(droneShip[5].getRotation()))*self.speed
+        newRotation = AITools.getInterceptAngle(object_list, self_loc, 0)
+        rotationMom = newRotation - droneShip[5].getRotation()
+        newRotationMom = rotationMom - 360
+        if abs(newRotationMom) < abs(rotationMom):
+            rotationMom = newRotationMom
+        if rotationMom > 5:
+            rotationMom = 5
+        elif rotationMom < -5:
+            rotationMom = -5
+        if abs(rotationMom) == 5:
+            droneShip[2] = droneShip[2]/2
+            droneShip[3] = droneShip[3]/2
+        droneShip[5].setMomentum(rotationMom)
+        return droneShip
 
-        droneShip[2] = (humanShip[0] - droneShip[0])/distance
-        droneShip[3] = (droneShip[1] - humanShip[1])/distance        
+    def shooting(self, screen, object_list, self_loc, xpos, ypos):
+        droneShip = object_list[self_loc:self_loc+8]
+        humanShip = object_list[0:8]
+        newRotation = AITools.getInterceptAngle(object_list, self_loc, 0)
+        droneShip[2] = 0
+        droneShip[3] = 0
+        droneShip[5].setMomentum(0)
+        if self.shotCounter % 25 == 0:
+            AITools.shoot(xpos, ypos, object_list, self_loc, object_list[self_loc+5].getRotation(), 122)
+        self.shotCounter += 1
+        return droneShip
+
+    def enclose(self, screen, object_list, self_loc):
+        distance = AITools.distanceBetween(object_list, 0, self_loc)
+        droneShip = object_list[self_loc:self_loc+8]
+        humanShip = object_list[0:8]
+        droneShip[2] = math.cos(math.radians(droneShip[5].getRotation()))*self.speed
+        droneShip[3] = math.sin(math.radians(droneShip[5].getRotation()))*self.speed
+        xMom = (humanShip[0] - droneShip[0])/distance
         if (droneShip[1] - humanShip[1]) > 0:
-            newRotation = math.degrees(math.acos(droneShip[2]))
+            newRotation = math.degrees(math.acos(xMom))
         else:
-            newRotation = 360 - math.degrees(math.acos(droneShip[2]))
+            newRotation = 360 - math.degrees(math.acos(xMom))
+        newRotation += (45*self.direction)
         rotationMom = newRotation - droneShip[5].getRotation()
         newRotationMom = rotationMom - 360
         if abs(newRotationMom) < abs(rotationMom):
@@ -98,29 +196,264 @@ class DroneAI():
         elif rotationMom < -5:
             rotationMom = -5
         droneShip[5].setMomentum(rotationMom)
+        return droneShip
+
+    def releasingMine(self, screen, object_list, self_loc):
+        distance = AITools.distanceBetween(object_list, 0, self_loc)
+        droneShip = object_list[self_loc:self_loc+8]
+        humanShip = object_list[0:8]
+        droneShip[2] = math.cos(math.radians(droneShip[5].getRotation()))*self.speed
+        droneShip[3] = math.sin(math.radians(droneShip[5].getRotation()))*self.speed
+        xMom = (humanShip[0] - droneShip[0])/distance
+        if (droneShip[1] - humanShip[1]) > 0:
+            newRotation = math.degrees(math.acos(xMom))
+        else:
+            newRotation = 360 - math.degrees(math.acos(xMom))
+        angle = newRotation
+        AITools.releaseMine(object_list, self_loc, angle)
+        return droneShip
+
+    def retreat(self, screen, object_list, self_loc):
+        droneShip = object_list[self_loc:self_loc+8]
+        humanShip = object_list[0:8]
+        droneShip[5].setMomentum(0)
+        droneShip[2] = math.cos(math.radians(droneShip[5].getRotation()))*self.speed
+        droneShip[3] = math.sin(math.radians(droneShip[5].getRotation()))*self.speed
+        return droneShip
+
+    def update(self, screen, object_list, self_loc):
+        distance = AITools.distanceBetween(object_list, 0, self_loc)
+        newRotation = AITools.getInterceptAngle(object_list, self_loc, 0)
+
+        #pulling entities out of the list for ease of change
+        droneShip = object_list[self_loc:self_loc+8]
+        humanShip = object_list[0:8]
+        rotationDistance = abs(newRotation - droneShip[5].getRotation())
+        
+        if self.progression == 0:
+            droneShip = self.attack(screen, object_list, self_loc)
+            if distance <= 100:
+                self.progression = 3
+            elif distance <= 300 and (rotationDistance < 10 or 360 - rotationDistance < 10):
+                self.progression = 1
+
+        elif self.progression == 1:
+            xpos = droneShip[0]
+            ypos = droneShip[1]
+            droneShip = self.shooting(screen, object_list, self_loc, xpos, ypos)
+            if self.shotCounter == 100:
+                self.shotCounter = 0
+                self.progression = 2
+            elif distance <= 100:
+                self.progression = 3
+            elif rotationDistance >= 20 and 360 - rotationDistance >= 20:
+                self.progression = 0
+
+        elif self.progression == 2:
+            droneShip = self.enclose(screen, object_list, self_loc)
+            if distance <= 150:
+                droneShip[5].setMomentum(0)
+                self.progression = 3
+                self.direction = random.randint(0,1)
+                if self.direction == 0:
+                    self.direction = -1
+            elif distance >= 400:
+                self.progression = 0
+
+        elif self.progression == 3:
+            droneShip = self.releasingMine(screen, object_list, self_loc)
+            self.progression = 4
+                
+        elif self.progression == 4:
+            droneShip = self.retreat(screen, object_list, self_loc)
+            if distance >= 400:
+                self.progression = 0
+                
         #zippings modified entity back into the list
         object_list[self_loc:self_loc+8] = droneShip
 
-        if random.randint(0,100) == 0:
-            AITools.shoot(object_list, self_loc, object_list[self_loc+5].getRotation(), 122)
+class ArmorManager():
+    def __init__(self, totalarmor):
+        self.armor = totalarmor
+        self.totalarmor = totalarmor
+
+    def applyDamage(self, amount):
+        self.armor -= amount
+
+    def getArmor(self):
+        return self.armor
+
+    def setArmor(self, amount):
+        self.armor = amount
+
+    def getTotalArmor(self):
+        return self.totalarmor
+
+    def setTotalArmor(self, amount):
+        self.totalarmor = amount
+
+#MulTiPle INheRiTAncE?!?! Suck it JAVA
+class PrezAI(DroneAI, ArmorManager):
+    def __init__(self):
+        DroneAI.__init__(self)
+        ArmorManager.__init__(self, 50)
+        self.speed = 4
+        self.RightLeft = 0
+
+    def update(self, screen, object_list, self_loc):
+        distance = AITools.distanceBetween(object_list, 0, self_loc)
+        newRotation = AITools.getInterceptAngle(object_list, self_loc, 0)
+
+        #pulling entities out of the list for ease of change
+        droneShip = object_list[self_loc:self_loc+8]
+        humanShip = object_list[0:8]
+        rotationDistance = abs(newRotation - droneShip[5].getRotation())
+        
+        if self.progression == 0:
+            droneShip = DroneAI.attack(self, screen, object_list, self_loc)
+            if distance <= 100:
+                self.progression = 3
+            elif distance <= 300 and (rotationDistance < 10 or 360 - rotationDistance < 10):
+                angle = droneShip[5].getRotation() + (90*self.direction)
+                droneAICount = 0
+                numExaminations = int(len(object_list)/8)
+                for i in range(numExaminations):
+                    if object_list[(i*8)+4] == 120:
+                        droneAICount += 1
+                if droneAICount <= 5:
+                    AITools.releaseDrone(object_list, self_loc, angle)
+                self.progression = 1
+
+        elif self.progression == 1:
+            xpos = droneShip[0]
+            ypos = droneShip[1]
+            angle = droneShip[5].getRotation()
+            if self.RightLeft == 0:
+                angle += 90
+                self.RightLeft = 1
+                xChange = math.cos(math.radians(angle))*45
+                yChange = math.sin(math.radians(angle))*45
+            elif self.RightLeft == 1:
+                angle -= 90
+                self.RightLeft = 2
+                xChange = math.cos(math.radians(angle))*45
+                yChange = math.sin(math.radians(angle))*45
+            elif self.RightLeft == 2:
+                self.RightLeft = 0
+                xChange = 0
+                yChange = 0
+            xpos += xChange
+            ypos += yChange
+            droneShip = DroneAI.shooting(self, screen, object_list, self_loc, xpos, ypos)
+            if self.shotCounter == 150:
+                self.shotCounter = 0
+                self.progression = 2
+            elif distance <= 100:
+                self.progression = 3
+            elif rotationDistance >= 20 and 360 - rotationDistance >= 20:
+                self.progression = 0
+
+        elif self.progression == 2:
+            droneShip = DroneAI.enclose(self, screen, object_list, self_loc)
+            if distance <= 150:
+                droneShip[5].setMomentum(0)
+                self.progression = 3
+                self.direction = random.randint(0,1)
+                if self.direction == 0:
+                    self.direction = -1
+            elif distance >= 400:
+                self.progression = 0
+
+        elif self.progression == 3:
+            droneShip = DroneAI.releasingMine(self, screen, object_list, self_loc)
+            self.progression = 4
+                
+        elif self.progression == 4:
+            droneShip = DroneAI.retreat(self, screen, object_list, self_loc)
+            if distance >= 400:
+                self.progression = 0
+
+        object_list[self_loc:self_loc+8] = droneShip
+        
+        pgx.Texthelper.write(screen, [("center", 70), "President of the World", 2], color = (110,0, 30))
+        pgx.draw.rect(screen, (200,0, 30), ["left.385", 100, 1150, 30])
+        armorfraction = self.getArmor() / self.getTotalArmor()
+        pgx.draw.rect(screen, (110,0, 30), ["left.385", 100, int(1150*armorfraction), 30])
+
+        if self.getArmor() < 0:
+            object_list[self_loc+7] = -1
+            inp = object_list[self_loc:self_loc+4]
+            for i in range(6):
+                object_list += particlemaker(*inp)
+        
 
 class SpikeAI():
     def __init__(self):
         self.timer = -random.randint(0,300)
 
-    def update(self, object_list, self_loc):
+    def update(self, screen, object_list, self_loc):
         self.timer += 1
         if self.timer >= 0:
-            AITools.shoot(object_list, self_loc, object_list[self_loc+5].getRotation(), 122)
-            AITools.shoot(object_list, self_loc, object_list[self_loc+5].getRotation()+90, 122)
-            AITools.shoot(object_list, self_loc, object_list[self_loc+5].getRotation()+180, 122)
-            AITools.shoot(object_list, self_loc, object_list[self_loc+5].getRotation()+270, 122)
+            xpos = object_list[self_loc]
+            ypos = object_list[self_loc+1]
+            AITools.shoot(xpos, ypos, object_list, self_loc, object_list[self_loc+5].getRotation(), 122)
+            AITools.shoot(xpos, ypos, object_list, self_loc, object_list[self_loc+5].getRotation()+90, 122)
+            AITools.shoot(xpos, ypos, object_list, self_loc, object_list[self_loc+5].getRotation()+180, 122)
+            AITools.shoot(xpos, ypos, object_list, self_loc, object_list[self_loc+5].getRotation()+270, 122)
             self.timer = -300
-            
+
+
+class AlienMineAI():
+    numFrames = 6
+    frameTick = 30 #number of ticks that constitute a new frame
+    
+    def __init__(self):
+        self.time = 0
+        self.frame = 1
+
+    def update(self, screen, object_list, self_loc):
+        self.time += 1
+        if self.time >= AlienMineAI.frameTick:
+            self.time = 0
+            self.frame += 1
+            if self.frame > AlienMineAI.numFrames:
+                self.frame = 1
+
+    def getFrame(self):
+        return self.frame
+
+    def getFrameNum(self):
+        num = self.getFrame()
+        return 123 + num/100
+
+    #releases a bunch of spikes and destroys the entity
+    def explode(self, object_list, self_loc):
+        for i in range(15):
+            xpos = object_list[self_loc]
+            ypos = object_list[self_loc+1]
+            AITools.shoot(xpos, ypos, object_list, self_loc, i*24, 122)
+        object_list[self_loc + 7] = -1
+
+class ShipExtras():
+    def __init__(self):
+        self.inventory = [0,0,0,0]
+
+    def update(self, screen, object_list, object_loc):
+        pass
+
+    def getInventory(self):
+        return self.inventory
+
+    def setInventory(self, newInventory):
+        self.inventory = newInventory
+
+    def addInventory(self, newInventory):
+        self.inventory = [a + b for a, b in zip(self.inventory, newInventory)]
              
 #particle effects
 def particlemaker(xpos, ypos, xmom, ymom):
     # particle settings
+    lifespan_randomness = 300
     particle_lifespan = 600 # 45
     random_factor = 30 # higher number = less random
     max_particles = 6
@@ -128,15 +461,21 @@ def particlemaker(xpos, ypos, xmom, ymom):
     printerlist_add = []
     for i in range(random.randint(max_particles - max_deviation, max_particles)):
         printerlist_add += [xpos, ypos, xmom + ((random.randint(-20, 20))/random_factor), ymom +
-                            ((random.randint(-20, 20))/random_factor), 4, RotationState(-1,-1), "NA", particle_lifespan]  
+                            ((random.randint(-20, 20))/random_factor), 4, RotationState(-1,-1), "NA", particle_lifespan + random.randint(-lifespan_randomness,lifespan_randomness)]  
     return printerlist_add
-    
+
+#physics wrapper
+#dt is measured in
+def doPhysics(object_list, pdt):
+    specedPhysics(object_list, GameConstants.width, GameConstants.height, GameConstants.max_speed, GameConstants.drag,
+                  GameConstants.step_drag, pdt)
+
 #physics handling
-def doPhysics(object_list, width, height, max_speed, drag, step_drag):
+def specedPhysics(object_list, width, height, max_speed, drag, step_drag, pdt):   
     for i in range(0, len(object_list), 8):
         #decaying objects
         if object_list[4 + i] in [2, 8, 5, 4, 9, 122]: #stuff in list should have a decrement to their life force
-            object_list[7 + i] -= 1
+            object_list[7 + i] -= int(1*pdt)
 
         #speed limit for ship
         if object_list[4+i] == 1 or object_list[4+i] == 5:
@@ -150,8 +489,8 @@ def doPhysics(object_list, width, height, max_speed, drag, step_drag):
                 object_list[3 + i] = -1 * max_speed
             
         # positioner
-        object_list[i] += object_list[2 + i]
-        object_list[1 + i] -= object_list[3 + i]
+        object_list[i] += object_list[2 + i]*pdt
+        object_list[1 + i] -= object_list[3 + i]*pdt
 
         # edges section
         if object_list[i] > width:
@@ -168,8 +507,8 @@ def doPhysics(object_list, width, height, max_speed, drag, step_drag):
             stepper = abs(object_list[2 +i]) + abs(object_list[3 +i])
             if stepper == 0:
                 stepper = 1
-            step_drag_x = abs(object_list[2 +i]) / stepper * step_drag
-            step_drag_y = abs(object_list[3 +i]) / stepper * step_drag   
+            step_drag_x = abs(object_list[2 +i]) / stepper * step_drag * pdt
+            step_drag_y = abs(object_list[3 +i]) / stepper * step_drag * pdt 
             if object_list[2 +i] > 0 and object_list[2 +i] > step_drag_x:
                 object_list[2 +i] -= step_drag_x
             elif step_drag_x > object_list[2 +i] > 0:
@@ -187,17 +526,9 @@ def doPhysics(object_list, width, height, max_speed, drag, step_drag):
             elif step_drag_y < object_list[3 +i] < 0:
                 object_list[3 +i] = 0
 
-        #rotation
-        #if not isinstance(object_list[5+i], str):
-        #    object_list[5+i] += object_list[6+i]/7 #the divided by moderates the speed of rotation
-        #    if object_list[5+i] >= 360:
-        #        object_list[5+i] -= 360
-        #    if object_list[5+i] <= -360:
-        #        object_list[5+i] += 360
-
         #rotation - now with objects!
         if object_list[5+i].getRotating():
-            object_list[5+i].rotate()
+            object_list[5+i].rotate(pdt)
         
         
 #helps out by setting entities to reasonable speeds
@@ -205,13 +536,13 @@ def asteroidspeedmaker(max_asteroid_spd):
     asteroid_speedset = []
     # if else statements institute a minimum horizontal and vertical speed (separately) of half the asteroid high speed
     if random.randint(0,1) == 1:
-        asteroid_speedset.append(random.randint(int(max_asteroid_spd/2), max_asteroid_spd)/100)
+        asteroid_speedset.append(random.randint(int(max_asteroid_spd/2), int(max_asteroid_spd))/100)
     else:
-        asteroid_speedset.append(random.randint(-1*max_asteroid_spd, int(-1*max_asteroid_spd/2))/100)
+        asteroid_speedset.append(random.randint(int(-max_asteroid_spd), int(-max_asteroid_spd/2))/100)
     if random.randint(0,1) == 1:
-        asteroid_speedset.append(random.randint(int(max_asteroid_spd/2), max_asteroid_spd)/100)
+        asteroid_speedset.append(random.randint(int(max_asteroid_spd/2), int(max_asteroid_spd))/100)
     else:
-        asteroid_speedset.append(random.randint(-1*max_asteroid_spd, int(-1*max_asteroid_spd/2))/100)
+        asteroid_speedset.append(random.randint(int(-max_asteroid_spd), int(-max_asteroid_spd/2))/100)
     return asteroid_speedset
 
 #generates the stars for backgrounds
@@ -219,29 +550,30 @@ def generateStars(width, height):
     stars_list = []
     # number of occurerences refers to relative probability of it showing up
     possible_IDs = [100, 100, 100, 101, 101, 102, 102, 103, 104, 105]
-    for i in range(24):
+    for i in range(random.randint(45, 55)):
         ID = possible_IDs[random.randint(0, len(possible_IDs)-1)]
-        stars_list += [random.randint(0,width), random.randint(0,height), 0, 0, ID, RotationState(-1,-1), "NA", 1]
+        stars_list += [random.randint(0,width), random.randint(0,height), 0, 0, ID, RotationState("NA","NA"), "NA", 1]
     return stars_list
 
 #leveler
-def leveler(object_list, max_asteroids, max_asteroid_spd, width, height, d_sats, d_parts, d_asteroids, sectornum):
+def leveler(object_list, max_asteroids, max_asteroid_spd, width, height, d_sats, d_parts, d_asteroids, d_fighters, sectornum):
     mineGeneration = [9, 10, 11, 12, 13, 14 ,15 ,16, 17, 18, 19]
     droneGeneration = [14, 15, 16, 17, 18, 19]
     supplyGeneration = [12, 13, 14, 15, 16, 17, 18, 19]
+    fighterGeneration = [11, 12, 13, 14, 15, 16, 17, 18, 19]
     additionalEntities = 0 #allows different sectors to generate greater numbers of entities than the base
     if sectornum in droneGeneration:
-        ASTEROID = 20
-        SATS = 35
-        PARTS = 10
-        MINES = 20
+        ASTEROID = 15
+        SATS = 40
+        PARTS = 15
+        MINES = 15
         DRONES = 15
         additionalEntities = 4
     elif sectornum in mineGeneration:
-        ASTEROID = 25
-        SATS = 40
-        PARTS = 10
-        MINES = 25
+        ASTEROID = 20
+        SATS = 45
+        PARTS = 15
+        MINES = 20
         DRONES = 0
         additionalEntities = 2
     else:
@@ -257,11 +589,13 @@ def leveler(object_list, max_asteroids, max_asteroid_spd, width, height, d_sats,
         #choosing the ID
         idChooser = random.randint(0, 100)
         if idChooser < MINES:
-            idSelection = [121, 121, 7, 7, 7]
+            idSelection = [121, 121, 7, 7, 7, 7, 123, 123]
         elif idChooser < ASTEROID + MINES:
             idSelection = d_asteroids
         elif idChooser < ASTEROID + MINES + SATS:
-            idSelection = d_sats
+            idSelection = d_sats[:]
+            if sectornum in fighterGeneration:
+                idSelection += d_fighters
         elif idChooser < ASTEROID + MINES + SATS + DRONES:
             idSelection = [120, 120]
         else:
@@ -280,6 +614,14 @@ def leveler(object_list, max_asteroids, max_asteroid_spd, width, height, d_sats,
             object_list_add = [random.randint(0, width), random.randint(0, height), asteroid_speedset[0],
                                asteroid_speedset[1], ID, RotationState(random.randint(0,360),random.randint(-10,10)),
                                SpikeAI(), 1]
+        elif 130 <= ID < 140: #special for fighters
+            object_list_add = [random.randint(0, width), random.randint(0, height), asteroid_speedset[0],
+                               asteroid_speedset[1], ID, RotationState(random.randint(0,360),random.randint(-3,3)),
+                               "NA", 1]
+        elif ID == 123: #special for alien animated bombs
+            object_list_add = [random.randint(0, width), random.randint(0, height), asteroid_speedset[0],
+                               asteroid_speedset[1], ID, RotationState(random.randint(0,360),random.randint(-10,10)),
+                               AlienMineAI(), 1]
         else:
             object_list_add = [random.randint(0, width), random.randint(0, height), asteroid_speedset[0],
                                asteroid_speedset[1], ID, RotationState(random.randint(0,360),random.randint(-10,10)),
@@ -321,7 +663,7 @@ def sectorGeneration(sectornum):
         return True
     return False
 
-def solarPanelDrops():
+def solarPanelDrops(shipLv):
     drops = [0, 0, 0, 0]
     if random.randint(1,100) <= 80:
         percentHelper = random.randint(1,100)
@@ -347,9 +689,11 @@ def solarPanelDrops():
             drops[3] += 6
         else:
             drops[3] += 9
+    if shipLv[3] > 0: #scavenging module
+        drops = [round(drop*1.5) for drop in drops]
     return drops
 
-def satelliteDrops():
+def satelliteDrops(shipLv):
     drops = [0, 0, 0, 0]
     if random.randint(1,100) <= 80:
         percentHelper = random.randint(1,100)
@@ -383,6 +727,8 @@ def satelliteDrops():
             drops[3] += 10
         else:
             drops[3] += 20
+    if shipLv[3] > 0: #scavenging module
+        drops = [round(drop*1.5) for drop in drops]
     return drops
 
 def RotatePoint(xpos, ypos, point, rotation):
@@ -426,14 +772,28 @@ def dock(xpos, ypos, image):
     ymom = -0.5
     return (newXpos, newYpos, xmom, ymom, rotation)
 
+def updateShipGraphics(currentarmor, totalarmor, timer_shipdeath, deathtimer):
+    armorPercent = currentarmor / totalarmor * 100
+    if timer_shipdeath < deathtimer:
+        graphics.SHIPSTATE = 5
+    elif armorPercent <= 30:
+        graphics.SHIPSTATE = 4
+    elif armorPercent <= 60:
+        graphics.SHIPSTATE = 3
+    elif armorPercent <= 90:
+        graphics.SHIPSTATE = 2
+    else:
+        graphics.SHIPSTATE = 1    
+
 #wrapper for saveObjects that determines how to save a level
+#if ship_id is changed, this function needs to be changed as well
 def saveGame(sectornum, object_list, width, height):
-    if sectorGeneration(sectornum):
+    if sectorGeneration(sectornum) and object_list[4] not in [1, 5]:
         saveObjects(sectornum, [-1], width, height)
     else:
         saveObjects(sectornum, object_list[:], width, height)
 
-def processListForSave(save_list, width, height):
+def _processListForSave(save_list, width, height):
     for i in range(len(save_list)):
         if isinstance(save_list[i], float):
             save_list[i] = round(save_list[i], 1)
@@ -447,28 +807,14 @@ def processListForSave(save_list, width, height):
 
 #saves objectlist to file by breaking it into a maximum of 5 lines
 def saveObjects(sectornum, save_list, width, height):
-    processListForSave(save_list, width, height)
+    _processListForSave(save_list, width, height)
     
-    resave_list = filehelper.loadObj(5)
+    resave_list = filehelper.loadObj(6)
     resave_list[sectornum-1] = save_list
 
-    filehelper.saveObj(resave_list, 5)
+    filehelper.saveObj(resave_list, 6)
 
-#extracts the list saveObjects saved to file
-def getObjects(sectornum, width, height, **kwargs):
-    if 'old' in kwargs:
-        if kwargs['old']:
-            object_list = []
-            for i in range(5):
-                object_list += filehelper.get(sectornum*5+i)
-            if object_list != []:
-                while object_list[-1] == '':
-                    object_list.pop()
-        else:
-            object_list = filehelper.loadObj(5)[sectornum-1]
-    else:
-        object_list = filehelper.loadObj(5)[sectornum-1]
-            
+def _processListFromSave(object_list, width, height):
     # turning x and y float percentages back into coords
     if len(object_list) >= 8:
         for i in range(len(object_list)):
@@ -476,15 +822,49 @@ def getObjects(sectornum, width, height, **kwargs):
                 object_list[i] = round(object_list[i]*width)     
             if i % 8 == 1:
                 object_list[i] = round(object_list[i]*height)
-    for i in range(int(len(object_list)/8)):
-        if object_list[4+i*8] == 2 or object_list[4+i*8] == 8:
-            object_list[6+i*8] = -10 #gets rid of shots and alien shots when entering a sector
+
+#extracts the list saveObjects saved to file
+def getObjects(sectornum, width, height):
+    object_list = filehelper.loadObj(6)[sectornum-1]
+
+    if object_list == [-1]:
+        object_list = ["PLEASE GENERATE"]
+    if len(object_list) > 1:
+        if sectorGeneration(sectornum) and object_list[4] not in [1,5]:
+           object_list = ["PLEASE GENERATE"] 
+                    
+    if object_list != ["PLEASE GENERATE"]:
+        _processListFromSave(object_list, width, height)
+        for i in range(int(len(object_list)/8)):
+            if object_list[4+i*8] == 2 or object_list[4+i*8] == 8:
+                object_list[7+i*8] = -10 #gets rid of shots and alien shots when entering a sector
     return object_list
 
 #deletes everyinstance of toDelete type in the delSector - only changes the file doesn't change anything in play
 def deleteObject(toDelete, delSector, width, height):
     object_list = getObjects(delSector, width, height)
+    deletedex = ""
     for i in range(0, len(object_list), 8):
         if object_list[i+4] == toDelete:
-            del object_list[i:i+8]
+            deletedex = i
+    if deletedex != "":
+        del object_list[deletedex:deletedex+8]
     saveGame(delSector, object_list, width, height)
+
+#mini program to replace the star fields of pre-generated sectors when star generation is changed
+def _changeStars(sectornum):
+    d_stars = [100, 101, 102, 103, 104, 105]
+    newstars = generateStars(1920,1080)
+    sector1 = getObjects(sectornum, 1920, 1080)
+    for i in range(0, len(sector1), 8):
+        if sector1[i+4] in d_stars:
+            sector1[i+7] = -1
+    sector1 = deaderizer(sector1)
+    sector1 += newstars
+    saveObjects(sectornum, sector1, 1920, 1080)
+
+def _discretionaryactivity():
+    print("working on corrections...")
+    obj = getObjects(1, 1920, 1080)
+    obj = obj[8:]
+    saveObjects(1, obj, 1920, 1080)

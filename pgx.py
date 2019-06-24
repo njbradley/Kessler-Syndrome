@@ -4,6 +4,10 @@ from textwrap import wrap
 import pickle
 import codecs
 import os
+import platform
+import sys
+
+BASEPATH = os.path.abspath(os.path.dirname(sys.argv[0])) 
 
 #keyboard for continuous keypresses
 def keyboard():
@@ -58,6 +62,15 @@ def keyboard_queued():
             chars_out.append(event.unicode)
     return chars_out
 
+#keyboard that is finally the intended way to do keyboard input, I believe
+def keydowns():
+    systemEvents = AllEvents.TICKINPUT
+    chars_out = []
+    for event in systemEvents:
+        if event.type == pygame.KEYDOWN:
+            chars_out.append(event.key)
+    return chars_out
+    
 #returns some stuff about the mouse
 def mouse():
     if pygame.mouse.get_focused():
@@ -78,16 +91,20 @@ def mouse():
 
 def scaleImage(image, scalar):
     size = image.get_size()
-    image = pygame.transform.scale(image, (round(size[0]*scalar), round(size[1]*scalar)))
+    newsize = [round(size[0]*scalar), round(size[1]*scalar)]
+    for i in range(2):
+        if not newsize[i]:
+            newsize[i] = 1
+    image = pygame.transform.scale(image, newsize)
     return image
 
-def scretchImage(image, size):
-    image = pygame.transform.scale(image, (size[0], size[1]))
+def stretchImage(image, size):
+    image = pygame.transform.scale(image, (round(size[0]), round(size[1])))
     return image
 
 def handlePath(path):
     path = path.split("\\")
-    return os.path.join(*path)
+    return os.path.join(BASEPATH, *path)
 
 def loadImage(path):
     path = handlePath(path)
@@ -141,9 +158,11 @@ class SoundVault():
     def play(name):
         SoundVault.storage[name].play()
 
-def loadSound(path):
+def loadSound(path, volume=100):
     path = handlePath(path)
-    return pygame.mixer.Sound(file=path)
+    sound = pygame.mixer.Sound(file=path)
+    sound.set_volume(volume/100)
+    return sound
 
 pygame.mixer.init()
 SoundVault('button', "Assets\\sounds\\click.ogg", volume=0.5)
@@ -242,6 +261,8 @@ class InputGetter():
     def update(self, screen):
         self.rawtext = self.currenttext[1]
         if self.clicked == False:
+            if self.currenttext[1] == "":
+               self.currenttext = self.initialtext 
             if Texthelper.writeButton(screen, self.currenttext) == True:
                 self.clicked = True
         if self.clicked == True:
@@ -256,12 +277,13 @@ class InputGetter():
 
     def _handleThisShit(self, inputtype):
         last_input = self.last_input
-        inputvar = keyboard_queued()    
+        inputvar = keyboard_queued()
+        downs = keydowns()
         if inputvar and last_input == ["getready"]:
             self.rawtext = "" 
         if inputvar != last_input:
             for i in range(len(inputvar)):
-                if inputvar[i] == "\x08":
+                if pygame.K_DELETE in downs or pygame.K_BACKSPACE in downs:
                     self.rawtext = self.rawtext[:-1]
                 if inputtype == "int":
                     if len(inputvar[i]) == 1 and inputvar[i].isdigit() == True:
@@ -299,16 +321,13 @@ class InputGetter():
 
  
 class AnnouncementBox():
-    width = 1
-    height = 1
     upcoming = [] # upcoming anouncements that need to be displayed
     BREAKPOS = 31 #amount of chars before a linebreak
     INTEXTSPEED = 4 # frames per character that it displayes at
     OUTTEXTSPEED = 0.5
     #image = portrait next to text, sound = whatever should play, text = text
     def __init__(self, image, sound, text):
-        self.image = scretchImage(image, (round(AnnouncementBox.height*0.1), round(AnnouncementBox.height*0.1)))
-        sound.set_volume(0.75)
+        self.image = stretchImage(image, (108*Texthelper.scalar, 108*Texthelper.scalar))
         self.sound = sound
         self.text = text
         self.linedtext = wrap(text, AnnouncementBox.BREAKPOS) # wraps text by linebreak
@@ -331,16 +350,18 @@ class AnnouncementBox():
             AnnouncementBox.upcoming[0]._timehelper()
 
     def _draw(self, screen):
-        screen.blit(self.image, (round(AnnouncementBox.width*0.3), round(AnnouncementBox.height*0.1))) # placing image on scrreen
-        boxheight = AnnouncementBox.height*0.1
+        draw.sblit(screen, self.image, (576, 108)) #placing image on screen
+
+        #calculating the height the box needs based on how much text there is 
+        boxheight = 108
         if len(self.linedtext) > 3:
             length = len(self.linedtext)
-            boxheight += AnnouncementBox.height*((length-3)*0.03333)
+            boxheight += 36*(length-3)
         boxheight = round(boxheight)
-        pygame.draw.rect(screen, (255,255,255), (round(AnnouncementBox.width*0.3+AnnouncementBox.height*0.1), round(AnnouncementBox.height*0.1),
-                                                 round(AnnouncementBox.width*0.4-AnnouncementBox.height*0.1), boxheight), 4)
-        pygame.draw.rect(screen, (255,255,255), (round(AnnouncementBox.width*0.3), round(AnnouncementBox.height*0.1),
-                                                 round(AnnouncementBox.height*0.1),round(AnnouncementBox.height*0.1)), 4)
+
+        #draws the two rectangles that make up the box
+        draw.rect(screen, (255,255,255), (684, 108, 660, boxheight), 4)
+        draw.rect(screen, (255,255,255), (576, 108, 108, 108), 4)
         
         # trims text to self.bounds and prints it
         total_chars = 0
@@ -348,19 +369,16 @@ class AnnouncementBox():
             start = max([0,self.bounds[0]-total_chars])
             end = min([len(self.linedtext[line]),max([0,self.bounds[1]-total_chars])])
             text = self.linedtext[line][start:end]
-            Texthelper.write(screen, [(round(AnnouncementBox.width*0.31+self.image.get_size()[0]),
-                             round(AnnouncementBox.height*0.11)+round(AnnouncementBox.height*0.03*line)),
-                             text, 2])
+            Texthelper.write(screen, [(703, 120+round(32.4*line)), text, 2])
             total_chars += len(self.linedtext[line])
         
         if self.bounds[1] >= sum(self.lineelements):
             self.printing = False
         
         if not self.printing:
-            Texthelper.write(screen, [(round(AnnouncementBox.width*0.40), round(AnnouncementBox.height*0.11 + boxheight)),
-                                      "Press Enter to Continue", 1.5])
-            inputvar = keyboard()
-            if "enter" in inputvar:
+            Texthelper.write(screen, [(768, 120+boxheight), "Press Enter to Continue", 1.5])
+            inputvar = keydowns()
+            if pygame.K_RETURN in inputvar:
                 self.ending = True
                 self.time = 1
 
@@ -368,6 +386,9 @@ class AnnouncementBox():
         self.time += 1
         if self.printing:
             self.bounds[1] = int(self.time/self.INTEXTSPEED)
+        inputvar = keydowns()
+        if self.printing and pygame.K_RETURN in inputvar: #allows you to skip by pressing enter
+            self.bounds[1] = sum(self.lineelements)
         if self.ending:
             self.bounds[0] = int(self.time/self.OUTTEXTSPEED)
             if self.bounds[0] >= self.bounds[1]:
@@ -381,17 +402,47 @@ class Texthelper():
     height = 1
     lastPressTime = 0
     HALFSIZERS = ["\'", ".", ":" ",", "!", "|"]
+    SAFEASPECT = (16,9) #the aspect ratio scaling goes back to for certain algorithms
 
+    #helps interpretcoords
+    def __compensateForAspect(x):
+        asw, ash = Texthelper.SAFEASPECT
+        supposedwidth = Texthelper.height/ash*asw
+        blackbarsize = (supposedwidth - Texthelper.width)/2
+        return x - blackbarsize
+            
     #part of the input sanitizing process: figures out how to center text mainly
+    #styles of coordinate input:
+    # (100, 200)
+    # ("center", 200) centers text in the screen in the x dimension
+    # ("right.350, 100") aligns text rightwards at x=350
+    # ("right-200") puts text 200 (scaled) left of the right bound of the screen
     def _interpretcoords(text_input):
         text_location = text_input[0]
         location_list = [text_location[0], text_location[1]]
         text_input2 = text_input[0:] #very important line
-        if isinstance(location_list[0], str):
+        if isinstance(location_list[0], str) and ("-" in location_list[0] or "+" in location_list[0]):
+            if "left" in location_list[0]:
+                index = 5 
+                startnum = 0     
+            elif "right" in location_list[0]:
+                index = 6 
+                startnum = Texthelper.width
+            else:
+                raise ValueError("invalid string keyword for relative coordinates")
+            offset = int(location_list[0][index:]) * Texthelper.scalar
+            if location_list[0][index-1] == "+":
+                location_list[0] = startnum + offset
+            elif location_list[0][index-1] == "-":
+                location_list[0] = startnum - offset
+            else:
+                raise ValueError("you appear to have entered an incorrect coordinate format")
+        elif isinstance(location_list[0], str):
             if "center" in location_list[0]:
                 if location_list[0][-1].isdigit():
                      num = int(location_list[0][location_list[0].rfind(".")+1:])
                      num *= Texthelper.scalar
+                     num = Texthelper.__compensateForAspect(num)
                      location_list[0] = num - Texthelper._textlength(text_input) / 2 
                 else:
                     location_list[0] = Texthelper.width / 2 - Texthelper._textlength(text_input) / 2
@@ -399,6 +450,7 @@ class Texthelper():
                 if location_list[0][-1].isdigit():
                      num = int(location_list[0][location_list[0].rfind(".")+1:])
                      num *= Texthelper.scalar
+                     num = Texthelper.__compensateForAspect(num)
                      location_list[0] = num
                 else:
                     location_list[0] = 0
@@ -406,13 +458,15 @@ class Texthelper():
                 if location_list[0][-1].isdigit():
                      num = int(location_list[0][location_list[0].rfind(".")+1:])
                      num *= Texthelper.scalar
+                     num = Texthelper.__compensateForAspect(num)
                      location_list[0] = num - Texthelper._textlength(text_input) 
                 else:
                     location_list[0] = Texthelper.width - Texthelper._textlength(text_input)                
             else:
-                raise ValueError("invalid string keyword for coordinates")
+                raise ValueError("invalid string keyword for coordinates")            
         else:
             location_list[0] *= Texthelper.scalar
+            location_list[0] = Texthelper.__compensateForAspect(location_list[0])
         location_list[1] *= Texthelper.scalar            
         text_input2[0] = (location_list[0], location_list[1])
         return text_input2
@@ -421,14 +475,18 @@ class Texthelper():
     def _drawtext(screen, text_input):
         text_location, text, scale = text_input
         horizontal_pos = text_location[0]
+        vertical_pos = text_location[1]
         for i in range(len(text)):
-            if text[i] != " " and not text[i] in Texthelper.HALFSIZERS:
+            if text[i] == "\n":
+                horizontal_pos = text_location[0]
+                vertical_pos += 15 * scale     
+            elif text[i] != " " and not text[i] in Texthelper.HALFSIZERS:
                 text3 = Font.getChar(text[i], scale)                
-                screen.blit(text3, (horizontal_pos, text_location[1]))
+                screen.blit(text3, (horizontal_pos, vertical_pos))
                 horizontal_pos += 11 * scale
             elif text[i] in Texthelper.HALFSIZERS:
                 text3 = Font.getChar(text[i], scale)
-                screen.blit(text3, (horizontal_pos, text_location[1]))
+                screen.blit(text3, (horizontal_pos, vertical_pos))
                 horizontal_pos += 5 * scale                
             elif text[i] == " " and text[i-1] != " " and i != 0:
                 horizontal_pos += 6 * scale
@@ -440,8 +498,8 @@ class Texthelper():
     def _sanitizeinput(proto_input):
         text_input = proto_input[:] #avoids mangling variables passed by reference
         text_input[2] = text_input[2] * Texthelper.scalar
-        text_input = Texthelper._interpretcoords(text_input)        
         text_input[1] = text_input[1].lower()
+        text_input = Texthelper._interpretcoords(text_input)                
         return text_input
     
     #petitions the font to have the right color
@@ -657,7 +715,6 @@ class Filehelper():
         lineData[column] = content
         Filehelper.set(self, lineData, line)
 
-    #experimental - subject to future change
     def saveObj(self, content, line):
         saveline = codecs.encode(pickle.dumps(content), "base64").decode()
         saveline = str(saveline)
@@ -665,15 +722,13 @@ class Filehelper():
         lines = file.readlines()
         file.close()
         
-        saveline = "".join(saveline.splitlines())
-        #saveline probably needs a \n at the end to work properly
+        saveline = "".join(saveline.splitlines()) + "\n"
         lines[line] = saveline
 
         file = open(self.info_file, "w")
         file.writelines(lines)
         file.close()
-
-    #experimental - subject to future change            
+         
     def loadObj(self, line):
         file = open(self.info_file, "r")
         lines = file.readlines()
@@ -683,24 +738,29 @@ class Filehelper():
 
 filehelper = Filehelper("Assets\\saves\\gamedata.txt") #makes lowercase filehelper used throughtout work with the class
 
+#special scaled draws reliant on Texthelper scaling
 class draw:
+    #calls Texthelper interpret coords but takes care of some things automatically
+    #location is (x, y) or [x, y]
+    def _interpretcoords(location):
+        return Texthelper._interpretcoords([location])[0]
+    
     def rect(Surface, color, Rect, width = 0):
-        try:
-            Rect = Rect.copy() #works for lists of coords and rects
-            for i in range(4):
-                Rect[i] = round(Rect[i]*Texthelper.scalar)
-        except:
-            Rect = list(Rect)
-            for i in range(4):
-                Rect[i] = round(Rect[i]*Texthelper.scalar)
+        Rect = list(Rect)
+        Rect[0], Rect[1] = draw._interpretcoords((Rect[0], Rect[1]))
+        Rect[2] *= Texthelper.scalar
+        Rect[3] *= Texthelper.scalar                                         
         width = round(width*Texthelper.scalar)
         pygame.draw.rect(Surface, color, Rect, width)
 
     def aaline(Surface, color, startpos, endpos, blend=1):
-        startpos = list(startpos)
-        endpos = list(endpos)
-        for i in range(2):
-            startpos[i] *= Texthelper.scalar
-            endpos[i] *= Texthelper.scalar
+        startpos = draw._interpretcoords(startpos)
+        endpos = draw._interpretcoords(endpos)
         pygame.draw.aaline(Surface, color, startpos, endpos, blend)
+
+    #static version of normal blit except it moves coordinates based on screen size
+    #because it uses texthelper the location tuple/list can use fancy things like center
+    def sblit(baseSurface, secondSurface, location):
+        location = draw._interpretcoords(location)
+        baseSurface.blit(secondSurface, location)
    

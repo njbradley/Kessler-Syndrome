@@ -104,7 +104,7 @@ def drawUpgradeScreen(screen, ShipLv, inventory, mode, upgradeType, status, curr
     return status
 
 #drawSpecialUpgrade pulls these based on shipLv index being modified
-upgrade_explanations = [0, 0, 0, "Increases drops by 50%"] 
+upgrade_explanations = [0, 0, 0, "Increases drops by 50%", "Decreases fuel usage by 30%"] 
 
 #these upgrade screens only have one upgrade from 0 to 1 in the shipLv list
 def drawSpecialUpgrade(screen, mode, shipLv, index, title, cost, status, inventory):
@@ -466,6 +466,13 @@ def garageUI(screen, ShipLv, homeInventory, mode):
             status = "scavengeUpgradeinit"
     else:
         Texthelper.write(screen, [("center", 675), "superior scavenging module", 3])
+
+    if ShipLv[4] == 0:
+        Texthelper.write(screen, [(1200, 740), "[onetime]", 1])
+        if Texthelper.writeButton(screen, [("center", 755), "upgrade main engines", 3]):
+            status = "engineUpgradeinit"
+    else:
+        Texthelper.write(screen, [("center", 755), "superior engine", 3])
         
     
 
@@ -494,6 +501,9 @@ def setupShop(shipLv, shipInventory, homeInventory, currentStats, totalStats, co
     shopStorage.totalStats = totalStats
     shopStorage.color = color
 
+scavengeUpgradeCost = [20, 2, 5, 150]
+engineUpgradeCost = [30, 5, 7, 400]
+
 #subsection of the great big main loop that deals with the various shops of zvezda
 def home(screen, freeStuff):
     shopStatus = shopStorage.shopStatus
@@ -504,7 +514,7 @@ def home(screen, freeStuff):
     totalStats = shopStorage.totalStats
     color = shopStorage.color
     screen.fill(color)
-
+    
     ####MARKET#SECTION####
     if shopStatus == "marketinit":
         marketUI(screen, homeInventory, True)
@@ -544,12 +554,18 @@ def home(screen, freeStuff):
 
     elif shopStatus == "ammoUpgrade":
         shopStatus = drawUpgradeScreen(screen, shipLv, homeInventory, False, "torpedo", "ammoUpgrade", currentStats, totalStats)
-
+    
     elif shopStatus == "scavengeUpgradeinit":
-        shopStatus = drawSpecialUpgrade(screen, True, shipLv, 3, "Upgrade Scavenging Module", [10, 2, 2, 35], "scavengeUpgrade", homeInventory)
+        shopStatus = drawSpecialUpgrade(screen, True, shipLv, 3, "Upgrade Scavenging Module", scavengeUpgradeCost, "scavengeUpgrade", homeInventory)
 
     elif shopStatus == "scavengeUpgrade":
-        shopStatus = drawSpecialUpgrade(screen, False, shipLv, 3, "Upgrade Scavenging Module", [10, 2, 2, 35], shopStatus, homeInventory)
+        shopStatus = drawSpecialUpgrade(screen, False, shipLv, 3, "Upgrade Scavenging Module", scavengeUpgradeCost, shopStatus, homeInventory)
+
+    elif shopStatus == "engineUpgradeinit":
+        shopStatus = drawSpecialUpgrade(screen, True, shipLv, 4, "Upgrade Main Engine", engineUpgradeCost, "engineUpgrade", homeInventory)
+
+    elif shopStatus == "engineUpgrade":
+        shopStatus = drawSpecialUpgrade(screen, False, shipLv, 4, "Upgrade Main Engine", engineUpgradeCost, shopStatus, homeInventory)
 
     elif shopStatus == "garageinit":
         garageUI(screen, shipLv, homeInventory, True)
@@ -727,19 +743,25 @@ def cheatsMenuUI(screen, cheats_settings):
 
     Texthelper.write(screen, [("center", 200), "Cheats Options", 6], color = (125, 15, 198))
 
-    drawSettingsOption(screen, "Infinite Armor", 600, 1100, 400, cheats_settings, 0)
+    x = 600 #settings coords
+    x2 = 1100
+    y = 400
 
-    drawSettingsOption(screen, "Infinite Fuel", 600, 1100, 400 + spacing * 1, cheats_settings, 1)
+    drawSettingsOption(screen, "Infinite Armor", x, x2, y, cheats_settings, 0)
 
-    drawSettingsOption(screen, "Infinite Ammo", 600, 1100, 400 + spacing * 2, cheats_settings, 2)
+    drawSettingsOption(screen, "Infinite Fuel", x, x2, y + spacing * 1, cheats_settings, 1)
 
-    drawSettingsOption(screen, "Teleportation", 600, 1100, 400 + spacing * 3, cheats_settings, 3, ontext = "Enabled", offtext = "Disabled")
+    drawSettingsOption(screen, "Infinite Ammo", x, x2, y + spacing * 2, cheats_settings, 2)
 
-    drawSettingsOption(screen, "Map Visibility", 600, 1100, 400 + spacing * 4, cheats_settings, 4)
+    drawSettingsOption(screen, "Teleportation", x, x2, y + spacing * 3, cheats_settings, 3, ontext = "Enabled", offtext = "Disabled")
 
-    drawSettingsOption(screen, "Hitboxes", 600, 1100, 400 + spacing * 5, cheats_settings, 5, ontext = "Visible", offtext = "Not Visible")
+    drawSettingsOption(screen, "Map Visibility", x, x2, y + spacing * 4, cheats_settings, 4)
 
-    drawSettingsOption(screen, "Free Stuff", 600, 1100, 400 + spacing * 6, cheats_settings, 6)
+    drawSettingsOption(screen, "Hitboxes", x, x2, y + spacing * 5, cheats_settings, 5, ontext = "Visible", offtext = "Not Visible")
+
+    drawSettingsOption(screen, "Free Stuff", x, x2, y + spacing * 6, cheats_settings, 6)
+
+    drawSettingsOption(screen, "Fast Shooting", x, x2, y + spacing * 7, cheats_settings, 7)
 
     if not any(cheats_settings):
         Texthelper.write(screen, [("center", 800), "What's the point of cheats if everything's turned off?", 3], color = (125, 15, 198))

@@ -10,7 +10,6 @@ import pygame
 import pgx
 
 from pygame import gfxdraw
-from pygame import Surface
 
 #accepts a surface that supports palettes (gifs) and changes the color palette based on preference
 #current and new colors are tuples of rgba (r, g, b, a)
@@ -148,7 +147,7 @@ def init(d_asteroids, d_parts, d_sats, graphlist, scalar2, scalar3, scalarscalar
     Images.add(9, scaleImage(loadImage("Assets\\images\\ionBlast.tif"), .5*scalarscalar))
 
     #aliens
-    Images.addRotate(120, scaleImage(loadImage("Assets\\images\\aliendrone.gif"), 1.5*scalarscalar), colorkey=(255,255,255))
+    Images.addRotate(120, scaleImage(loadImage("Assets\\images\\aliendrone.gif"), 2*scalarscalar), colorkey=(255,255,255))
     Images.addRotate(121, scaleImage(loadImage("Assets\\images\\spiker.gif"), 2*scalarscalar), colorkey=(255,255,255))
     Images.addRotate(122, scaleImage(loadImage("Assets\\images\\alienshot.gif"), scalarscalar), colorkey=(255,255,255))
     #aliens - alien mines
@@ -239,8 +238,9 @@ def crayprinter(screen, xpos, ypos, object_number, rotation, decayLife, scalar3,
                                 [xpos, ypos+20*scalar3],
                                 [xpos-6*scalar3, ypos+5*scalar3]]
             flame_pointlist = Rotate(xpos, ypos, flame_pointlist, rotation.getRotation())
-            pygame.gfxdraw.aapolygon(screen, flame_pointlist, (255,100,0))
-            pygame.gfxdraw.filled_polygon(screen, flame_pointlist, (255,100,0))
+            flame_color = (255,100,0) if pgx.filehelper.get(3)[4] < 1 else (138, 43, 226)
+            pygame.gfxdraw.aapolygon(screen, flame_pointlist, flame_color)
+            pygame.gfxdraw.filled_polygon(screen, flame_pointlist, flame_color)
         flame = False
         
     elif object_number == 2 or object_number == 8: #draws missiles (id 8 are alien missiles)

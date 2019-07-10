@@ -385,6 +385,14 @@ class PrezAI(DroneAI, ArmorManager):
             inp = object_list[self_loc:self_loc+4]
             for i in range(6):
                 object_list += particlemaker(*inp)
+            repetitions = len(object_list)
+            safethings = [1,100,101,102,103,104,105,106,107,108,109,2,4,666]
+            for i in range(0, repetitions, 8):
+                if object_list[i+4] not in safethings and object_list[i+4]>10:
+                    inp = object_list[i:i+4]
+                    object_list[7+i] = -1
+                    object_list += particlemaker(*inp)
+                
         
 
 class SpikeAI():
@@ -475,7 +483,7 @@ def specedPhysics(object_list, width, height, max_speed, drag, step_drag, pdt):
     for i in range(0, len(object_list), 8):
         #decaying objects
         if object_list[4 + i] in [2, 8, 5, 4, 9, 122]: #stuff in list should have a decrement to their life force
-            object_list[7 + i] -= int(1*pdt)
+            object_list[7 + i] -= pdt
 
         #speed limit for ship
         if object_list[4+i] == 1 or object_list[4+i] == 5:
@@ -676,11 +684,11 @@ def solarPanelDrops(shipLv):
     if random.randint(1,100) <= 20:
         percentHelper = random.randint(1,100)
         if percentHelper <= 60:
-            drops[2] += 2
-        elif 61 <= percentHelper <= 90:
-            drops[2] += 3
+            pass
+        elif 61 <= percentHelper <= 80:
+            drops[2] += 1
         else:
-            drops[2] += 6
+            drops[2] += 2
     if random.randint(1,100) <= 10:
         percentHelper = random.randint(1,100)
         if percentHelper <= 60:
@@ -713,12 +721,12 @@ def satelliteDrops(shipLv):
             drops[1] += 6
     if random.randint(1,100) <= 20:
         percentHelper = random.randint(1,100)
-        if percentHelper <= 60:
-            drops[2] += 2
+        if percentHelper <= 40:
+            drops[2] += 1
         elif 61 <= percentHelper <= 90:
-            drops[2] += 4
+            drops[2] += 2
         else:
-            drops[2] += 6
+            drops[2] += 3
     if random.randint(1,100) <= 70:
         percentHelper = random.randint(1,100)
         if percentHelper <= 60:
@@ -727,6 +735,44 @@ def satelliteDrops(shipLv):
             drops[3] += 10
         else:
             drops[3] += 20
+    if shipLv[3] > 0: #scavenging module
+        drops = [round(drop*1.5) for drop in drops]
+    return drops
+
+def fighterDrops(shipLv):
+    drops = [0, 0, 0, 0]
+    if random.randint(1,100) <= 80:
+        percentHelper = random.randint(1,100)
+        if percentHelper <= 60:
+            drops[0] += 2
+        elif 61 <= percentHelper <= 90:
+            drops[0] += 4
+        else:
+            drops[0] += 6
+    if random.randint(1,100) <= 40:
+        percentHelper = random.randint(1,100)
+        if percentHelper <= 40:
+            drops[1] += 4
+        elif 61 <= percentHelper <= 90:
+            drops[1] += 6
+        else:
+            drops[1] += 8
+    if random.randint(1,100) <= 20:
+        percentHelper = random.randint(1,100)
+        if percentHelper <= 60:
+            drops[2] += 2
+        elif 61 <= percentHelper <= 90:
+            drops[2] += 4
+        else:
+            drops[2] += 6
+    if random.randint(1,100) <= 70:
+        percentHelper = random.randint(1,100)
+        if percentHelper <= 40:
+            drops[3] += 10
+        elif 61 <= percentHelper <= 85:
+            drops[3] += 20
+        else:
+            drops[3] += 30
     if shipLv[3] > 0: #scavenging module
         drops = [round(drop*1.5) for drop in drops]
     return drops
@@ -772,9 +818,9 @@ def dock(xpos, ypos, image):
     ymom = -0.5
     return (newXpos, newYpos, xmom, ymom, rotation)
 
-def updateShipGraphics(currentarmor, totalarmor, timer_shipdeath, deathtimer):
+def updateShipGraphics(currentarmor, totalarmor, dead):
     armorPercent = currentarmor / totalarmor * 100
-    if timer_shipdeath < deathtimer:
+    if dead:
         graphics.SHIPSTATE = 5
     elif armorPercent <= 30:
         graphics.SHIPSTATE = 4

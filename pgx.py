@@ -7,7 +7,10 @@ import os
 import platform
 import sys
 
-BASEPATH = os.path.abspath(os.path.dirname(sys.argv[0])) 
+if getattr(sys, 'frozen', False):
+    BASEPATH = os.path.dirname(sys.executable)
+else:
+    BASEPATH = os.path.dirname(os.path.abspath(__file__))
 
 #keyboard for continuous keypresses
 def keyboard():
@@ -101,6 +104,19 @@ def scaleImage(image, scalar):
 def stretchImage(image, size):
     image = pygame.transform.scale(image, (round(size[0]), round(size[1])))
     return image
+
+def fitImage(image, size):
+    returnImage = pygame.Surface(size)
+    scale = max(image.get_size()[0]/size[0], image.get_size()[1]/size[1])
+    scale = 1/scale
+    image = scaleImage(image, scale)
+    if image.get_size()[0] == size[0]:
+        returnImage.blit(image, (0,(size[1]-image.get_size()[1])/2))
+    elif image.get_size()[1] == size[1]:
+        returnImage.blit(image, ((size[0]-image.get_size()[0])/2,0))
+    else:
+        raise RuntimeError("it seems fitImage was unable to scale the image :(")
+    return returnImage
 
 def handlePath(path):
     path = path.split("\\")
@@ -409,7 +425,9 @@ class Texthelper():
         asw, ash = Texthelper.SAFEASPECT
         supposedwidth = Texthelper.height/ash*asw
         blackbarsize = (supposedwidth - Texthelper.width)/2
-        return x - blackbarsize
+        if x>Texthelper.width+blackbarsize:
+            blackbarsize *= 2
+        return (x - blackbarsize if x-blackbarsize > 0 else x)
             
     #part of the input sanitizing process: figures out how to center text mainly
     #styles of coordinate input:
@@ -421,13 +439,16 @@ class Texthelper():
         text_location = text_input[0]
         location_list = [text_location[0], text_location[1]]
         text_input2 = text_input[0:] #very important line
-        if isinstance(location_list[0], str) and ("-" in location_list[0] or "+" in location_list[0]):
+        if isinstance(location_list[0], str) and ("-" in location_list[0] or "+" in location_list[0]): #EX: right-110
             if "left" in location_list[0]:
                 index = 5 
                 startnum = 0     
             elif "right" in location_list[0]:
                 index = 6 
                 startnum = Texthelper.width
+            elif "center" in location_list[0]:
+                index = 7
+                startnum = Texthelper.width/2
             else:
                 raise ValueError("invalid string keyword for relative coordinates")
             offset = int(location_list[0][index:]) * Texthelper.scalar
@@ -437,7 +458,7 @@ class Texthelper():
                 location_list[0] = startnum - offset
             else:
                 raise ValueError("you appear to have entered an incorrect coordinate format")
-        elif isinstance(location_list[0], str):
+        elif isinstance(location_list[0], str): #EX: 'center', 'center.600', 'left.20', 'right'
             if "center" in location_list[0]:
                 if location_list[0][-1].isdigit():
                      num = int(location_list[0][location_list[0].rfind(".")+1:])
@@ -464,7 +485,7 @@ class Texthelper():
                     location_list[0] = Texthelper.width - Texthelper._textlength(text_input)                
             else:
                 raise ValueError("invalid string keyword for coordinates")            
-        else:
+        else: #EX: 520
             location_list[0] *= Texthelper.scalar
             location_list[0] = Texthelper.__compensateForAspect(location_list[0])
         location_list[1] *= Texthelper.scalar            
@@ -521,7 +542,9 @@ class Texthelper():
 
     #backend for writebox and writebuttonbox
     def _drawbox(screen, rect, color):
-        pygame.draw.rect(screen, color, rect, int(2*Texthelper.scalar))
+        width = int(2*Texthelper.scalar)
+        width = width if width > 0 else 1
+        pygame.draw.rect(screen, color, rect, width)
 
     #takes a sanitized text_input
     def _textlength(text_input):
@@ -757,6 +780,15 @@ class draw:
         startpos = draw._interpretcoords(startpos)
         endpos = draw._interpretcoords(endpos)
         pygame.draw.aaline(Surface, color, startpos, endpos, blend)
+
+    def circle(Surface, color, pos, radius, width=0):
+        pos = draw._interpretcoords(pos)
+        pos = round(pos[0]), round(pos[1])
+        adjusted_radius = round(Texthelper.scalar * radius)
+        radius = adjusted_radius if adjusted_radius > 0 else 1
+        adjusted_width = round(Texthelper.scalar * width)
+        width = adjusted_width if (adjusted_width > 0 or width == 0) else 1
+        pygame.draw.circle(Surface, color, pos, radius, width)
 
     #static version of normal blit except it moves coordinates based on screen size
     #because it uses texthelper the location tuple/list can use fancy things like center
